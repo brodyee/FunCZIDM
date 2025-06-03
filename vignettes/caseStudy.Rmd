@@ -1,0 +1,109 @@
+---
+title: "Case Study"
+author: "Brody Erlandson"
+output: pdf_document
+---
+
+# Introduction
+
+In this vignette, we walk through the code used to run the case study in the 
+paper "A Bayesian Functional Concurrent Zero-Inflated Dirichlet Multinomial 
+Regression Model". This also serves as a demonstration of the `FunCZIDM` 
+package. To run multiple chains, we used a `slurm` array within a high 
+performance computing cluster to sample in parallel. Both the `.R` and 
+`slurm` scripts are provided for ease of reproducability and implementation.
+TODO : Where are they provided?
+
+# Setup 
+
+The data used in the case study is available in the `FunCZIDM` package.
+
+```{r}
+library(FunCZIDM)
+
+data(infantCounts)
+data(infantCovariates)
+```
+
+Though the data is already in the correct format, you should ensure that your 
+data is in the correct format. The `FunCZIDM` function requires the 
+factors in covariates to be in the correct format. 
+
+```{r}
+str(infantCovariates)
+```
+
+The  `FunCZIDM` function will use the reference level as the reference category 
+for the variable. If you want to change the reference level, you can use the
+`relevel` function. The continuous variables will be standardized automatically, 
+and the output of `FunCZIDM` will have the means and standard deviations used 
+for standardization. This is useful for the other functions, as you will always 
+input the original scale of the continuous variables.
+
+The index of the variable to vary by, `Day.of.life.sample.obtained` in the 
+case study, and the id's of the subjects, `Subject`, should be noted, as they will be 
+used in the `FunCZIDM` function. The `which` function can be used to find the 
+index for ease.
+
+```{r}
+idIndex <- which(colnames(infantCovariates) == "Subject")
+timeIndex <- which(colnames(infantCovariates) == "Day.of.life.sample.obtained")
+```
+
+The counts data should be aligned with the covariates data, meaning the $i^{th}$ 
+row of the counts data should correspond to the $i^{th}$ row of the covariates
+data. The counts data should be a matrix, and only contain counts (i.e., no id 
+column).
+
+```{r}
+head(infantCounts)
+```
+
+# Running the Model
+
+Once the data is in the correct format, you can sample from the FunC-ZIDM model 
+using the `FunCZIDM` function. A full description of the arguments and options 
+can be found in the reference manual. 
+
+```{r, eval=FALSE}
+# This code is not run evaluated.
+FunCZIDM(infantCounts, 
+         infantCovariates, 
+         idIndex,
+         timeIndex,
+         iter=...,
+         burnIn=...,
+         thin=10,
+         toReturn=c("RA"),
+         priors=list("first beta sd"=1, "a"=3, "b"=3, "alpha"=.01, 
+                     "beta"=10),
+         saveToFile=TRUE,
+         saveNullInBetaCI=TRUE,
+         nullInBetaCIFileName="nullInBetaCI.csv")
+```
+
+Since we are ran multiple processes, we save the output to a file and combine 
+all the chains after the each has finished sampling. The `FunCZIDM` package 
+includes `combineOutputs` function to combine these files, allowing for ease of 
+processing the results. 
+
+# Inference
+
+The package includes the combined output from the case study, so it is not 
+nessicary to run the sampling. We demonstrate how to use the functions to get 
+inference from the samples using the preloaded samples. First, we show how one 
+would combine the files.
+
+```{r, eval=FALSE}
+# This code is not evaluated.
+outputFiles <- c("output1.rds", "output2.rds", "output3.rds", "output4.rds")
+combinedOutput <- combineOutputs(outputFiles, saveToFile=FALSE)
+```
+
+With the combined output, the package has the ability to calculate the relative 
+abundance and $\alpha$-diversity functions ($\text{RA}_j(t)$ and $\alpha_p(t)$),
+the change in relative abundance and $\alpha$-diversity functions 
+($\delta_v \alpha_p(t)$ and $\delta_v \text{RA}_{jp}(t)$), and the functional 
+coefficients ($\beta_{jp}(t)$). Note in the case study script we do not 
+calculate any of these statistics. Instead, we check the `nullInBetaCI.csv` file
+to see which covariates may have significant 
