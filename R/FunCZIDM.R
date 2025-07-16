@@ -121,14 +121,27 @@ FunCZIDM <- function(counts, covariates, ids, varyingCov, rCols = NULL, iter = 1
   capProposals <- proposalCap > 0 # If proposalCap is 0, no capping of proposals
 
   # processing the data
-  centerScaleList <- list() # List to store the center and scale of each covariate
+  centerScaleList <- list() # List to store the center and scale of each cov
+  centerScaleList[[1]] <- "no c/s" # Intercept does not have c/s
+  listIdx <- 2 # Start from 2 to skip intercept
   for (i in 1:ncol(covariates)) {
     if (is.numeric(covariates[, i])) {
-      centerScaleList[[i]] <- list(center = mean(covariates[, i]),
-                                   scale = sd(covariates[, i]))
-      covariates[, i] <- (covariates[, i] - centerScaleList[[i]]$center) / 
-                         centerScaleList[[i]]$scale
+      centerScaleList[[listIdx]] <- list(center = mean(covariates[, i]),
+                                       scale = sd(covariates[, i]))
+      covariates[, i] <- (covariates[, i] - centerScaleList[[listIdx]]$center) / 
+                          centerScaleList[[listIdx]]$scale
+    } else {
+      centerScaleList[[listIdx]] <- "no c/s" # No center/scale for factors
+      if (length(levels(covariates[, i])) > 2) {
+        for (j in 3:length(levels(covariates[, i]))) {
+          # If the factor has more than 2 levels, then we need to account for 
+          # the extra dummy variables for the factor levels
+          listIdx <- listIdx + 1
+          centerScaleList[[listIdx]] <- "no c/s"
+        }
+      } 
     }
+    listIdx <- listIdx + 1
   }
   X <- model.matrix(~., data=covariates) 
   
@@ -155,17 +168,12 @@ FunCZIDM <- function(counts, covariates, ids, varyingCov, rCols = NULL, iter = 1
   boundaryKnots <- basisList$boundaryKnots # Boundary knots of basis functions
 
   # updating rCols to correspond to the Xvar
-  rCols <- c(0, rCols + 1) # Add intercept to rCols
-  for (i in 2:length(rCols)) { # start from 2 to skip intercept
-    # getting the first instance of the rCol in the Xvar, since this column is 
-    # the same as the column in X.
-    rCols[i] <- match(rCols[i], XvartoXColMapping) - 1 # -1 for 0 indexing
-  }
+  rCols <- c(0)
 
   if (is.null(toReturn)) 
     toReturn <- character(0) # default to all columns
-  
-  start <- Sys.time()
+ 
+  start <- Sys.time() # TODO : Update ability to have any re col and the ability to change 1 in horseshoe prior
   output <- FunCZIDMSampler(iter, counts, Xvar, idEndIdx, rCols,
                             BURN_IN = burnIn,
                             NUM_THIN = thin,
@@ -209,7 +217,7 @@ FunCZIDM <- function(counts, covariates, ids, varyingCov, rCols = NULL, iter = 1
 
   return(output)
 }
-# TODO : XvartoXColMapping wont match to covariates beacuse cov includes the ids and time variable. make these 
+
 # TODO : make sure each (vector) is type defined
 #' @title Get \eqn{\beta_{jp}(t)} Functions
 #' @description Extracts the \eqn{\beta_{jp}(t)} function samples from the 
@@ -282,7 +290,7 @@ calcRA <- function(output, covProfile=NULL) {
   basis <- cbind(1, basis) # Add intercept
   numDf <- output$df + 1 # + 1 for intercept
 
-  return(getRAFits(output$beta, basis, covProfile=covProfile))
+  return(getRAFits(output$beta, basis, covariates=covProfile))
 }
 
 #' @title Calculate the Multipicative Change in Relateive Abundance
@@ -548,7 +556,8 @@ combineOutputs <- function(outputFiles, saveToFile = TRUE,
 
   # these keys are the same for all outputs
   keys <- c("interiorKnots", "boundaryKnots", "varyingCov", "colMapping",
-            "XvartoXColMapping", "basisFunc", "df", "catNames")
+            "XvartoXColMapping", "basisFunc", "df", "catNames",
+            "centerScaleList")
   for (key in keys) {
     combinedOutput[[key]] <- output[[key]]
   }
@@ -558,19 +567,23 @@ combineOutputs <- function(outputFiles, saveToFile = TRUE,
 
   # Initialize combinedOutput with the first output
   for (key in outputKeys) {
-    if (grepl("prop|mean", key)) {
+    if (grepl("prop|mean|prop", key, ignore.case=TRUE)) {
       # if prop or mean are in the key, then we must combine by averaging
       combinedOutput[[key]] <- output[[key]]/numOutputs
     } else {
       # otherwise, we have samples of a parameter, so we can just combine
       dim <- dim(output[[key]])
-      dim[3] <- numSamples*numOutputs # Combine samples across outputs
+      dim[length(dim)] <- numSamples*numOutputs # Combine samples across outputs
       combinedOutput[[key]] <- array(0, dim = dim) # Initialize with zeros
 
       # interleave the samples from each output
       sOrig = 1
       for (s in seq(1, numSamples*numOutputs, by = numOutputs)) {
-        combinedOutput[[key]][,,s] <- output[[key]][,,sOrig]
+        if (length(dim(output[[key]])) == 3) {
+          combinedOutput[[key]][,,s] <- output[[key]][,,sOrig]
+        } else {
+          combinedOutput[[key]][,s] <- output[[key]][,sOrig]
+        }
         sOrig <- sOrig + 1
       }
     }
@@ -581,7 +594,7 @@ combineOutputs <- function(outputFiles, saveToFile = TRUE,
   for (file in outputFiles[-1]) { # Skip the first file as it is already read
     output <- readRDS(file)
     for (key in outputKeys) {
-      if (grepl("prop|mean", key)) {
+      if (grepl("prop|mean|prop", key, ignore.case=TRUE)) {
         # if prop or mean are in the key, then we must combine by averaging
         combinedOutput[[key]] <- combinedOutput[[key]] 
                                  + (output[[key]]/numOutputs)
@@ -591,7 +604,11 @@ combineOutputs <- function(outputFiles, saveToFile = TRUE,
         # interleave the samples from each output
         sOrig = 1
         for (s in seq(fileNum, numSamples*numOutputs, by = numOutputs)) {
-          combinedOutput[[key]][,,s] <- output[[key]][,,sOrig]
+          if (length(dim(output[[key]])) == 3) {
+            combinedOutput[[key]][,,s] <- output[[key]][,,sOrig]
+          } else {
+            combinedOutput[[key]][,s] <- output[[key]][,sOrig]
+          }
           sOrig <- sOrig + 1
         }
       }
@@ -604,4 +621,131 @@ combineOutputs <- function(outputFiles, saveToFile = TRUE,
     return(NULL) # Return NULL if saved to file
   }
   return(combinedOutput)   
+}
+
+#' @title Generate Data
+#' @description Generates synthetic data for testing the model.
+#' @param n (integer) Number of individuals.
+#' @param c (integer) Number of categories.
+#' @param p (integer) Number of functional covariates.
+#' @param totalCountRange (numeric vector, default=c(100, 200)) Range of total 
+#' counts.
+#' @return A list containing the generated data: counts, covariates, ids, 
+#' timepoints and the true parameters.
+#' @export 
+generateData <- function(n, c, p, totalCountRange = c(100, 200)){
+  library(MCMCpack) # For rdirichlet function
+  ### Generate predictor matrices ###
+  timePoints <- c()
+  numObsPerID <- numeric(n)
+  cumNumObsPerID <- numeric(n)
+  sumNumObsPerID <- 0
+  for (i in 1:n) {
+    numObsPerID[i] <- sample(3:10, 1)
+    cumNumObsPerID[i] <- sumNumObsPerID
+    sumNumObsPerID <- sumNumObsPerID + numObsPerID[i]
+    timePoints <- c(timePoints, sort(runif(numObsPerID[i], 0, 10)))
+  }
+  nTotal <- sum(numObsPerID)
+  X <- matrix(rnorm(nTotal*p), nTotal, p)
+  X <- scale(X)
+  X <- cbind(1, X) # Add intercept
+  colnames(X) <- c("intercept", paste0("cov", 1:p))
+  personID <- rep(1:n, numObsPerID)
+  Y <- makeBlockMatrix(X, c(1), personID)
+
+  ### Set true parameter values ###
+  f1 <- function(t) { (-.2*(t-5)^2 + 5)/7 }
+  f2 <- function(t) { 1/(1.75 + exp(-1.25*(t - 5))) }
+  f3 <- function(t) { .07*t }
+  f4 <- function(t) { .5 + 0*t }
+  f5 <- function(t) { 0*t }
+  funcList <- list(f1, f2, f3, f4, f5)
+
+  # Generate time-varying coefficients and true response w/ intercept or r
+  tvMat <- matrix(0, nTotal, c)
+  funcMat <- matrix(runif(p*c, .5, 5.5), p, c)
+  funcMat[,5:c] <- 5
+  for (cov in 2:(p+1)) {
+    for (i in 1:c) {
+      f <- funcList[[round(funcMat[cov-1,i])]]
+      plusMinus <- funcMat[cov-1,i] - round(funcMat[cov-1,i])
+      tvMat[,i] <- tvMat[,i] + ifelse(plusMinus >= 0, 1, -1)*f(timePoints)*X[,cov]
+    }
+  }
+  
+  # Generate functional intercepts and r
+  betaIntercepts <- matrix(NA, length(timePoints), c)
+  betaTrue <- matrix(runif(c, .5, 4.5), 1, c)
+  for (i in 1:c) {
+    f <- funcList[[round(betaTrue[1,i])]]
+    plusMinus <- betaTrue[1,i] - round(betaTrue[1,i])
+    betaIntercepts[,i] <- ifelse(plusMinus >= 0, 1, -1)*f(timePoints)
+  }
+  rTrue <- matrix(runif(n*c, -.05, .05), n, c)
+
+  # Generate gamma values
+  gamma <- exp(betaIntercepts + Y%*%rTrue + tvMat)
+
+  # Generate zero inflation
+  numLowZeros <- floor(.30*c)
+  numMidZeros <- floor(.50*c)
+  numHighZeros <- c - numLowZeros - numMidZeros
+  zeroProps <- c(runif(numLowZeros, 0, .15), runif(numMidZeros, .15, .75), 
+                 runif(numHighZeros, .75, .90))
+  zeroProps <- sample(zeroProps, c, replace=FALSE)
+  oneZeroMultiplier <- matrix(1, nTotal, c)
+  for (cat in 1:c){
+    zeroInf <- rbinom(n, 1, 1-zeroProps[cat])
+    personWithOne <- which(zeroInf == 1)
+    while (length(personWithOne) < 5) {
+      zeroInf <- rbinom(n, 1, 1-zeroProps[cat])
+      personWithOne <- which(zeroInf == 1)
+    }
+    personWithZero <- which(zeroInf == 0)
+    oneZeroMultiplier[,cat] <- ifelse(personID %in% personWithZero, 0, 1)
+  }
+
+  # check if any person has all zeros
+  allZeroIndicators = rowSums(oneZeroMultiplier) == 0
+  personWithAllZero <- unique(personID[which(allZeroIndicators)])
+  for (person in personWithAllZero) {
+    personIdx = which(personID == person)
+    while (sum(rowSums(oneZeroMultiplier[personIdx,])) == 0) {
+      for (cat in 1:c){
+        zeroInf <- rbinom(1, 1, 1-zeroProps[cat])
+        oneZeroMultiplier[personIdx, cat] <- rep(ifelse(zeroInf == 0, 0, 1),
+                                                 length(personIdx))
+      }
+    }
+  }
+
+  # apply the zero inflation multiplier
+  gamma <- gamma*oneZeroMultiplier
+
+  # Generate RA values from a Dirichlet distribution
+  RA <- t(apply(gamma, 1, function(a) rdirichlet(1, a)))
+
+  # Generate N (total counts) from a Uni
+  N <- round(runif(nTotal, totalCountRange[1], totalCountRange[2]))
+
+  # Combine N and RA into a data frame for easier iteration
+  parms <- data.frame(N=N)
+  parms$RA <- split(RA, row(RA))
+
+  # Generate counts from a Multinomial distribution
+  getCounts <- function(N, RA) {
+    rmultinom(1, N, RA)
+  }
+
+  # Apply getCounts to each row of parms
+  counts <- t(mapply(getCounts, parms$N, parms$RA, SIMPLIFY=TRUE))
+  counts <- as.matrix(counts)
+
+  covariates <- data.frame(X[, -1]) # Remove intercept column
+  colnames(covariates) <- colnames(X)[-1] # Set column names to covariates
+  return(list(counts = counts, ids = personID, covariates = covariates, timePoints = timePoints,
+              betaIntercepts = betaTrue, rTrue = rTrue, 
+              betaFuncMat = funcMat, trueZI = sum(gamma == 0)/length(gamma),
+              trueRA=RA, funcList=funcList)) 
 }

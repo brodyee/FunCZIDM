@@ -121,9 +121,9 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
   double betaPropSD = .3,
          rProposalSD = 1.;
   if (PROPOSAL_VARS.containsElementNamed("beta proposal sd"))
-    betaPropSD = as<double>(PRIORS["beta proposal sd"]);
+    betaPropSD = as<double>(PROPOSAL_VARS["beta proposal sd"]);
   if (PROPOSAL_VARS.containsElementNamed("r proposal sd"))
-    rProposalSD = as<double>(PRIORS["r proposal sd"]);
+    rProposalSD = as<double>(PROPOSAL_VARS["r proposal sd"]);
   
   // For proposal adjustment
   mat betaProposalSD(NUM_COEF, NUM_CAT, fill::value(betaPropSD));
@@ -228,19 +228,19 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
                              Named("rAcceptProp") = rAcceptProp,
                              Named("rMeans") = rMeans,
                              Named("etaMeanPropZeros") = etaMeanPropZeros);
-  if (saveEta) output["eta"] = etaSamples;
-  if (saveC) output["c"] = cSamples;
+  if (saveEta) output.attr("eta") = etaSamples;
+  if (saveC) output.attr("c") = cSamples;
   if (saveRA) {
     scaleCubeRows(cSamples);
-    output["RA"] = cSamples; // TODO : rename in R scripts prob to RA
+    output.attr("RA") = cSamples; // TODO : rename in R scripts prob to RA
   }
-  if (saveU) output["u"] = uSamples;
-  if (saveR) output["r"] = rSamples;
-  if (savePhi) output["phi"] = phiSamples;
-  if (saveLambda) output["lambda"] = lambdaSamples;
-  if (saveNu) output["nu"] = nuSamples;
-  if (saveTau) output["tau"] = tauSamples;
-  if (saveXi) output["xi"] = xiSamples;
+  if (saveU) output.attr("u") = uSamples;
+  if (saveR) output.attr("r") = rSamples;
+  if (savePhi) output.attr("phi") = phiSamples;
+  if (saveLambda) output.attr("lambda") = lambdaSamples;
+  if (saveNu) output.attr("nu") = nuSamples;
+  if (saveTau) output.attr("tau") = tauSamples;
+  if (saveXi) output.attr("xi") = xiSamples;
                           
   return output;
 }

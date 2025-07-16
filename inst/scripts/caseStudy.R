@@ -38,6 +38,7 @@ data(infantCovariates)
 # getting the index of the subject id's and the time-varying variable
 idIdx <- which(colnames(infantCovariates) == "Subject")
 timeIdx <- which(colnames(infantCovariates) == "Day.of.life.sample.obtained")
+# extracting the subject ids and tv variable
 ids <- infantCovariates[, idIdx]
 time <- infantCovariates[, timeIdx]
 infantCovariates <- infantCovariates[, -c(idIdx, timeIdx), drop = FALSE]

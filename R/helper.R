@@ -60,9 +60,8 @@ getNullInBetaCIProportion <- function(output, XvartoXColMapping, colMapping, var
   basis <- cbind(1, basis)
   numDf <- df + 1
   
-  # get the zero and one functions for checking the null in CI
+  # get the zero functions for checking the null in CI
   zeroFunc <- testPoints*0
-  oneFunc <- testPoints*0 + 1
 
   # writing the header of the csv to the file
   cat("category,covariate,Proportion 0 in 95 CI\n", file=fileName)
@@ -334,4 +333,27 @@ checkListNamesAndValues <- function(x, expected, xName) {
       stop(paste(name, "is not a valid name in", xName, "."))
     }
   }
+}
+
+makeBlockMatrix <- function(X, RAND_EFF_COLS, UNIQUE_OBS_ID) {
+  # Make block matrix for random effects
+  # X: data matrix
+  # RAND_EFF_COLS: column numbers of X that are random effects
+  # UNIQUE_OBS_ID: vector of unique observation IDs (1-n, sequentially)
+
+  NUM_OBS <- length(unique(UNIQUE_OBS_ID))
+  NUM_RAND_EFF <- length(RAND_EFF_COLS)
+  NUM_TOTAL <- nrow(X)
+
+  blockMatrix <- matrix(0, NUM_TOTAL, NUM_OBS*NUM_RAND_EFF)
+  observations <- unique(UNIQUE_OBS_ID)
+
+  for (obsID in observations) {
+    obsRows <- which(UNIQUE_OBS_ID == obsID)
+    blockMatrix[obsRows, 
+                ((obsID-1)*NUM_RAND_EFF+1):(obsID*NUM_RAND_EFF)] <- X[obsRows,
+                                                                 RAND_EFF_COLS]
+  }
+
+  return(blockMatrix)
 }

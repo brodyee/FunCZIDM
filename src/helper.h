@@ -36,8 +36,9 @@ sp_mat makeBlockMat(const mat& X, const uvec& RAND_EFF_COLS,
     startCol = id*NUM_RE_PER_ID;
     endCol = startCol + NUM_RE_PER_ID - 1;
     blockMat.submat(startIdx, startCol,
-                    startIdx, endCol) = blockMatItems.rows(startIdx, startIdx);
-  }
+                    endIdx, endCol) = blockMatItems.rows(startIdx, endIdx);
+    startIdx = endIdx + 1;
+  }  
 
   return blockMat;
 }
@@ -696,7 +697,7 @@ arma::cube getBetaVC(const arma::cube& beta, const arma::uvec VCRows, const arma
   }
 
   return betaVC;
-}
+}  
 
 // ---- Statistics related functions ----
 
@@ -768,6 +769,40 @@ arma::mat getDeltaHillDiversity(const arma::cube& betaVCFits, const arma::cube& 
 } // previously getHillDivMultiChange
 
 //[[Rcpp::export]]
+arma::mat getDeltaHillDivMeanAndCI(const arma::cube& betaVCFits, const arma::cube& fit, 
+                          const arma::mat& sumExpFit, const double l = 0,
+                          double change = 1) {
+  const int NUM_ROWS    = betaVCFits.n_rows,
+            NUM_SAMPLE  = betaVCFits.n_slices;
+  
+  // fit of covariate profile you are changing from
+  cube fitRAFrom = exp(fit); 
+  
+  // fit of covariate profile you are changing to
+  cube fitRATo = exp(fit + change*betaVCFits); 
+  mat sumExpFitTo = sum(exp(fit + change*betaVCFits), 1);
+  for (int s = 0; s < NUM_SAMPLE; s++) {
+    fitRAFrom.slice(s).each_col() /= sumExpFit.col(s);
+    fitRATo.slice(s).each_col() /= sumExpFitTo.col(s);
+  }
+
+  cube aDiv = (l != 0) ? (cube) arma::pow(sum(fitRAFrom%pow(fitRAFrom, -1*l), 1)
+                                /sum(fitRATo%pow(fitRATo, -1*l), 1), 1/l)
+                       : (cube) sum(fitRAFrom%log(fitRAFrom), 1)
+                                /sum(fitRATo%log(fitRATo), 1);
+  aDiv.reshape(NUM_ROWS, NUM_SAMPLE, 1);
+  mat ret = aDiv.slice(0);
+  
+  mat out(ret.n_rows, 3);
+  mat quantiles = arma::quantile(ret, arma::vec({0.025, 0.975}), 1);
+  
+  out.col(0) = quantiles.col(0); // 0.025 quantile
+  out.col(1) = arma::mean(ret, 1); // mean
+  out.col(2) = quantiles.col(1); // 0.975 quantile
+  return out;
+}
+
+//[[Rcpp::export]]
 arma::cube getAllCatDeltaRA(const arma::cube& betaVCFits, const arma::cube& fit,
                      const arma::mat& sumExpFit, double change = 1) {
   const int NUM_ROWS = betaVCFits.n_rows,
@@ -805,6 +840,30 @@ arma::mat getDeltaRA(const int cat, const arma::cube& betaVCFits, const arma::cu
 
   return deltaRA;
 } // previously getMultChangeVCRAwithCovProfile
+
+//[[Rcpp::export]]
+arma::mat getDeltaRAMeanAndCI(const int cat, const arma::cube& betaVCFits, 
+                              const arma::cube& fit, const arma::mat& sumExpFit,
+                              double change = 1) {
+  const int NUM_ROWS    = betaVCFits.n_rows,
+            NUM_SAMPLE  = betaVCFits.n_slices;
+
+  // adding vB_p(t) to each respective cat, then summing to get denom of deltaRA  
+  cube denominatorCube = sum(exp(fit + change*betaVCFits), 1); 
+  denominatorCube.reshape(NUM_ROWS, NUM_SAMPLE, 1);
+  mat denominator = denominatorCube.slice(0);
+
+  mat expChange = exp(change*betaVCFits.col(cat));
+  mat deltaRA = expChange%(sumExpFit/denominator);
+  
+  mat out(deltaRA.n_rows, 3);
+  mat quantiles = arma::quantile(deltaRA, arma::vec({0.025, 0.975}), 1);
+  
+  out.col(0) = quantiles.col(0); // 0.025 quantile
+  out.col(1) = arma::mean(deltaRA, 1); // mean
+  out.col(2) = quantiles.col(1); // 0.975 quantile
+  return out;
+}
 
 // [[Rcpp::export]]
 double aitchison_distance(const arma::vec& xi, const arma::vec& xj) {
@@ -892,21 +951,21 @@ arma::vec computeFunction(const arma::vec& t, int funcNum) {
 }
 
 //[[Rcpp::export]]
-arma::vec getTrueVCRAFromMat(const arma::mat& betaNonVC, const arma::vec& testPoints,
+arma::vec getTrueVCRAFromMat(const arma::mat& trueIntercepts, const arma::vec& testPoints,
                        int catToCheck, const arma::vec& funcInfo,
                        double xCenter = 0, bool interceptTV = false) {
   // TODO: Fix this to work with xCenter != 0
   const int NUM_ROWS = testPoints.n_elem,
             NUM_CAT = funcInfo.n_elem;
   double funcNum, plusMinusOne;//scale;
-  mat X(NUM_ROWS, betaNonVC.n_rows, fill::ones),
+  mat X(NUM_ROWS, trueIntercepts.n_rows, fill::ones),
       fit(NUM_ROWS, NUM_CAT, fill::zeros);
   vec vcra(NUM_ROWS, fill::zeros),
       numerator(NUM_ROWS, fill::zeros), 
       denominator(NUM_ROWS, fill::zeros);
   catToCheck = catToCheck - 1; // R to C++ indexing
 
-  fit = interceptTV ? betaNonVC : X*betaNonVC;
+  fit = trueIntercepts;
   for (int cat = 0; cat < NUM_CAT; cat++) {
     funcNum = std::round(funcInfo[cat]);
     plusMinusOne = (funcInfo[cat] - funcNum >= 0) ? 1 : -1;
