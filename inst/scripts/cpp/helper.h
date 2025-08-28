@@ -1,0 +1,704 @@
+/*
+ Author: Brody Erlandson
+ 
+ This is a helper file for the FunCDM.cpp, DM.cpp, and ZIDM.cpp files.
+ It contains the functions that are used within the sampler.
+ */
+
+#ifndef HELPER_H
+#define HELPER_H
+
+// [[Rcpp::plugins(cpp17)]]
+
+#include <RcppArmadillo.h>
+//[[Rcpp::depends(RcppArmadillo)]]
+
+using namespace Rcpp;
+using namespace arma; 
+
+////////////////////////////////////////////////////////////////////////////////
+//////////////////// Initialization & output helpers ///////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+sp_mat makeBlockMat(const mat& X, const uvec& RAND_EFF_COLS,
+                    const uvec& ID_END_IDX) { 
+  const int NUM_RE_COEF = ID_END_IDX.n_elem*RAND_EFF_COLS.n_elem,
+            NUM_RE_PER_ID = RAND_EFF_COLS.n_elem,
+            NUM_OBS = X.n_rows;
+  unsigned int startIdx, endIdx, startCol, endCol;
+  mat blockMatItems = X.cols(RAND_EFF_COLS);
+  sp_mat blockMat(NUM_OBS, NUM_RE_COEF);
+
+  startIdx = 0;
+  for (int id = 0; id < ID_END_IDX.n_elem; id++) {
+    endIdx = ID_END_IDX[id];
+    startCol = id*NUM_RE_PER_ID;
+    endCol = startCol + NUM_RE_PER_ID - 1;
+    blockMat.submat(startIdx, startCol,
+                    endIdx, endCol) = blockMatItems.rows(startIdx, endIdx);
+    startIdx = endIdx + 1;
+  }  
+
+  return blockMat;
+}
+
+bool isValueInCharVector(Rcpp::CharacterVector vec, std::string value) {
+  for (int i = 0; i < vec.size(); i++) {
+      if (vec[i] == value) {
+          return true;
+      }
+  }
+  return false;
+}
+
+void scaleCubeRows(cube& toScale) {
+  const int NUM_ROW = toScale.n_rows,
+            NUM_COL = toScale.n_cols,
+            NUM_SLICE = toScale.n_slices;
+  cube rowSums = arma::sum(toScale, 1);
+
+  for (int slice = 0; slice < NUM_SLICE; slice++) {
+    for (int row = 0; row < NUM_ROW; row++) {
+      for (int col = 0; col < NUM_COL; col++) {
+        toScale.at(row, col, slice) = toScale.at(row, col, slice)
+                                      / rowSums.at(row, 0, slice);
+      }
+    }
+  }
+}
+
+void fillRandSampleMat(mat& mat, const double& a=-1, const double& b=1) {
+  int n = mat.n_rows*mat.n_cols;
+
+  for (int i = 0; i < n; i++) {
+    mat[i] = R::runif(a, b);
+  }
+}
+
+void fillGammaVec(vec& vec, const double& alpha = 3, const double& beta = 9) {
+  int n = vec.n_elem;
+
+  for (int i = 0; i < n; i++) {
+    vec[i] = R::rgamma(alpha, beta);
+  }
+}
+
+void fillLambdaNu(mat& lambda, mat& nu) {
+  const int NUM_COEF = lambda.n_rows,
+            NUM_CAT = lambda.n_cols;
+
+  for (int coef = 0; coef < NUM_COEF; coef++) {
+    for (int cat = 0; cat < NUM_CAT; cat++) {
+      nu.at(coef, cat) = 1/R::rgamma(1/2, 1);
+      lambda.at(coef, cat) = std::sqrt(1/R::rgamma(1/2, nu.at(coef, cat)));
+    }
+  }
+}
+
+void fillEta(Mat<short>& eta, const umat& COUNTS, const uvec ID_END_IDX) {
+  int NUM_OBS = ID_END_IDX.n_elem,
+      NUM_CAT = eta.n_cols;
+  unsigned int startIdx, endIdx;
+  
+  for (int cat = 0; cat < NUM_CAT; cat++) {
+    startIdx = 0;
+    for (int obs = 0; obs < NUM_OBS; obs++) {
+      endIdx = ID_END_IDX[obs];
+      if (!COUNTS.col(cat).subvec(startIdx, endIdx).is_zero())
+        eta.col(cat).subvec(startIdx, endIdx).fill(1);
+      startIdx = endIdx + 1;
+    }
+  }   
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////// Sampling helpers ///////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+void adjustProposalVars(mat& betaProposalSD, Mat<short>& betaAcceptCount,
+                        const double freq, const bool capVar = false,
+                        const double cap = .75) {
+  const int NUM_COEF = betaProposalSD.n_rows,
+            NUM_CAT = betaProposalSD.n_cols;
+  
+  double acceptProp;
+  for (int coef = 0; coef < NUM_COEF; coef++) {
+    for (int cat = 0; cat < NUM_CAT; cat++) {
+      acceptProp = ((double) betaAcceptCount.at(coef, cat))/freq;
+      if (acceptProp <= .15) {
+        betaProposalSD.at(coef, cat) *= acceptProp/.25;
+        betaAcceptCount.at(coef, cat) = 0;
+        if (betaProposalSD.at(coef, cat) <= .001)
+          betaProposalSD.at(coef, cat) = .001;
+      } else if (acceptProp <= .45) {
+        betaAcceptCount.at(coef, cat) = 0;
+      } else {
+        betaProposalSD.at(coef, cat) *= acceptProp/.25;
+        betaAcceptCount.at(coef, cat) = 0;
+        if (capVar && betaProposalSD.at(coef, cat) > cap)
+          betaProposalSD.at(coef, cat) = cap;
+      }
+    }
+  }
+}
+ 
+double dbetaBin(const int& x, const int& n, const double& a,
+                const double& b, bool log = false) {
+  double dens = 0;
+
+  if (log) {
+    dens = R::lchoose(n, x) + R::lbeta(x + a, n - x + b) - R::lbeta(a, b);
+  } else {
+    dens = R::choose(n, x)*R::beta(x + a, n - x + b)/R::beta(a, b);
+  }
+
+  return dens;
+}
+
+void sampleEta(Mat<short>& eta, mat& c, const mat& gamma, const umat& COUNTS,
+               const double alpha, const double beta) {
+  int NUM_OBS = eta.n_rows,
+      NUM_CAT = eta.n_cols;
+  short etaProp;
+  double etaPropProb, etaPrevProb, logAcceptProb, logZratio, cProp;
+  const double INF = std::numeric_limits<double>::infinity();
+  vec T = arma::sum(c, 1);
+  uvec zDot = arma::sum(COUNTS, 1);
+
+  for (int cat = 0; cat < NUM_CAT; cat++) {
+    for (int obs = 0; obs < NUM_OBS; obs++) { 
+      // eta = 1 -> propose eta = 0 (only if COUNTS = 0)
+      if ((eta.at(obs, cat) == 1) && (COUNTS.at(obs, cat) == 0)) { 
+        etaProp = 0; cProp = 0;
+        etaPropProb = dbetaBin(0, 1, alpha, beta, true); // p(eta = 0)
+        etaPrevProb = dbetaBin(1, 1, alpha, beta, true); // p(eta = 1)
+        logZratio = zDot[obs]*(std::log(T[obs]) - std::log(T[obs] 
+                                                             - c.at(obs, cat)));
+
+        // Q cancels with pC
+        logAcceptProb = logZratio + etaPropProb - etaPrevProb;
+      } else if ((eta.at(obs, cat) == 0) && (COUNTS.at(obs, cat) == 0)) {
+        // eta = 0 -> propose eta = 1 (only if COUNTS = 0)
+        etaProp = 1; cProp = R::rgamma(gamma.at(obs, cat), 1);
+        etaPropProb = dbetaBin(1, 1, alpha, beta, true); // p(eta = 1)
+        etaPrevProb = dbetaBin(0, 1, alpha, beta, true); // p(eta = 0)
+        logZratio = zDot[obs]*(std::log(T[obs] + cProp) - std::log(T[obs])); 
+
+        // Q cancels with pC
+        logAcceptProb = logZratio + etaPropProb - etaPrevProb;
+      } else { //  COUNTS != 0 
+        // eta must be 1
+        if (eta.at(obs, cat) == 1) {
+          // Must not accept, to keep eta = 1
+          logAcceptProb = -1*INF; 
+        } else { // eta.at(obs, cat) == 0
+          // Must make eta = 1, since COUNTS != 0
+          logAcceptProb = INF;
+          etaProp = 1;
+          cProp = R::rgamma(gamma.at(obs, cat), 1);
+        }
+      }
+
+      if (logAcceptProb > std::log(R::runif(0, 1))) {
+        eta.at(obs, cat) = etaProp;
+        c.at(obs, cat) = cProp;
+      }
+    }
+  }   
+}
+
+void sampleEtaGrouped(Mat<short>& eta, mat& c, const mat& gamma, 
+                      const umat& COUNTS, const uvec ID_END_IDX, 
+                      const double alpha, const double beta) {
+  int NUM_OBS = ID_END_IDX.n_elem,
+      NUM_CAT = eta.n_cols;
+  unsigned int startIdx, endIdx;
+  short etaProp;
+  double etaPropProb, etaPrevProb, logAcceptProb, logZratio, cProp, numMeas;
+  const double INF = std::numeric_limits<double>::infinity();
+  vec T = arma::sum(c, 1);
+  uvec zDot = arma::sum(COUNTS, 1);
+  
+  auto fillcProp = [&gamma](mat& c, int cat, unsigned int startIdx,
+                            unsigned int endIdx) {
+    for (int i = startIdx; i <= endIdx; i++) {
+      c.at(i, cat) = R::rgamma(gamma.at(i, cat), 1);
+    }
+  };
+  
+  for (int cat = 0; cat < NUM_CAT; cat++) {
+    startIdx = 0;
+    for (int obs = 0; obs < NUM_OBS; obs++) {
+      endIdx = ID_END_IDX[obs];
+      numMeas = endIdx - startIdx + 1;
+      
+      if ((eta.at(startIdx, cat) == 1) // all idxs are the same for each obs
+            && (COUNTS.col(cat).subvec(startIdx, endIdx).is_zero())) { 
+        // eta = 1 -> propose eta = 0 (only if COUNTS = 0)
+        etaProp = 0; cProp = 0;
+        etaPropProb = dbetaBin(0, 1, alpha, beta, true); // p(eta = 0)
+        etaPrevProb = dbetaBin(1, 1, alpha, beta, true); // p(eta = 1)
+        logZratio = arma::sum(zDot.subvec(startIdx, endIdx)
+                                %( arma::log(T.subvec(startIdx, endIdx)) 
+                                     - arma::log(T.subvec(startIdx, endIdx) 
+                                     - c.col(cat).subvec(
+                                         startIdx, endIdx))
+                                )
+        );
+        
+        // Q cancels with pC
+        logAcceptProb = logZratio + numMeas*(etaPropProb - etaPrevProb);
+      } else if ((eta.at(startIdx, cat) == 0) // all idxs are the same 
+                   && COUNTS.col(cat).subvec(startIdx, endIdx).is_zero()) {
+        // eta = 0 -> propose eta = 1 (only if COUNTS = 0)
+        etaProp = 1;
+        // fill c with props, change back to 0 if not accepted
+        fillcProp(c, cat, startIdx, endIdx);
+        etaPropProb = dbetaBin(1, 1, alpha, beta, true); // p(eta = 1)
+        etaPrevProb = dbetaBin(0, 1, alpha, beta, true); // p(eta = 0)
+        logZratio = arma::sum(zDot.subvec(startIdx, endIdx)
+                                %( arma::log(T.subvec(startIdx, endIdx) 
+                                               + c.col(cat).subvec(startIdx,
+                                                       endIdx)) 
+                                     - arma::log(T.subvec(startIdx,endIdx))
+                                )
+        );
+        
+        // Q cancels with pC
+        logAcceptProb = logZratio + numMeas*(etaPropProb - etaPrevProb);
+      } else { // All COUNTS != 0
+        // eta must be 1
+        if (eta.at(startIdx, cat) == 1) { // all idxs are the same 
+          // Must not accept, to keep eta = 1
+          logAcceptProb = -1*INF; 
+          etaProp = 0; // to make sure we don't enter the else if
+        } else { // eta.at(startIdx, cat) == 0
+          // Must make eta = 1, since all COUNTS != 0
+          logAcceptProb = INF;
+          etaProp = 1;
+          fillcProp(c, cat, startIdx, endIdx);
+        }
+      }
+      
+      if (logAcceptProb > std::log(R::runif(0, 1))) {
+        eta.col(cat).subvec(startIdx, endIdx).fill(etaProp);
+        if (etaProp == 0) {
+          c.col(cat).subvec(startIdx, endIdx).fill(0);
+        } // else c already filled
+      } else if (etaProp == 1) {
+        // etaProp == 1 and not accepted, change back to 0
+        c.col(cat).subvec(startIdx, endIdx).fill(0);
+      }
+      startIdx = endIdx + 1;
+    }
+  }   
+}
+ 
+void sampleC(mat& c, const umat& COUNTS, const vec& u, const mat& gamma,
+             const Mat<short>& eta) {
+  const int NUM_OBS = COUNTS.n_rows; 
+  int row, col;
+  arma::uword linearIdx;
+  
+  c.zeros();
+  uvec idx = arma::find(eta != 0);
+  vec scales = 1.0 / (1.0 + u);
+  mat shapes = arma::conv_to<mat>::from(COUNTS) + gamma;
+  for (arma::uword i = 0; i < idx.n_elem; i++) { // only update where eta != 0
+    linearIdx = idx[i];
+    // Convert linear index to (row, col) indices (column-major storage)
+    row = linearIdx % NUM_OBS;
+    col = linearIdx / NUM_OBS;
+    
+    c.at(row, col) = std::max(R::rgamma(shapes.at(row, col), scales[row]),
+         std::numeric_limits<double>::epsilon());
+  }
+}
+
+void sampleCnoZI(mat& c, const umat& COUNTS, const vec& u, const mat& gamma) {
+  const int NUM_OBS = COUNTS.n_rows,
+            NUM_CAT = COUNTS.n_cols,
+            NUM_ROW = c.n_rows;
+  
+  vec scales = 1.0 / (1.0 + u);
+  mat shapes = arma::conv_to<mat>::from(COUNTS) + gamma;
+  for (arma::uword row = 0; row < NUM_ROW; row++) {
+    for (arma::uword col = 0; col < NUM_CAT; col++) {
+      c.at(row, col) = std::max(R::rgamma(shapes.at(row, col), scales[row]),
+                                std::numeric_limits<double>::epsilon());
+    }
+  }
+}
+ 
+void sampleU(vec& u, const mat& c, const umat& COUNTS){
+  const int NUM_ROW = u.n_rows;
+  
+  arma::vec zDot = arma::conv_to<arma::vec>::from(arma::sum(COUNTS, 1));
+  arma::vec T = arma::sum(c, 1);
+  for (int row = 0; row < NUM_ROW; row++) {
+    u[row] = R::rgamma(zDot[row], 1.0/T[row]);
+  }
+}
+
+double ldgammaDiffScale(vec x, vec shape1, vec shape2) {
+  // sum of the differences in log density of a gamma dist with rate/scale = 1
+  return arma::sum((shape1 - 1)%arma::log(x) - arma::lgamma(shape1)
+                   - (shape2 - 1)%arma::log(x) + arma::lgamma(shape2));
+}
+ 
+void sampleBeta(mat& beta, const mat& X, const mat& c, const vec& kappa,
+                const rowvec& tau, const mat& lambda, mat& gamma, 
+                mat& betaAcceptProp, const mat& betaProposalSD, 
+                Mat<short>& betaAcceptCount, const Mat<short>& eta, 
+                const double firstBetaSD) {
+  const int NUM_COEF = beta.n_rows,
+            NUM_CAT = beta.n_cols,
+            NUM_OBS = c.n_rows;
+  double betaProp, logAcceptCSum, logAcceptProb, betaCurr, sd, lamTilde;
+  vec gammaPropVec(NUM_OBS), gammaCol(NUM_OBS), cCol(NUM_OBS);
+
+  for (int cat = 0; cat < NUM_CAT; cat++) {
+    arma::uvec obsEtaOne = arma::find(eta.col(cat) != 0);
+    gammaCol = gamma.col(cat);
+    cCol = c.col(cat);
+    
+    for (int coef = 0; coef < NUM_COEF; coef++) {
+      lamTilde = ((lambda.at(coef - 1, cat)*lambda.at(coef - 1, cat)
+                   *kappa[cat]*kappa[cat])
+                  /(kappa[cat]*kappa[cat] 
+                    + lambda.at(coef - 1, cat)*lambda.at(coef - 1, cat)
+                      *tau[cat]*tau[cat]));
+      sd = (coef == 0) ? firstBetaSD : tau[cat]*sqrt(lamTilde);
+      betaCurr = beta.at(coef, cat);
+      logAcceptCSum = 0; // reset logAcceptCSum
+      betaProp = R::rnorm(betaCurr, betaProposalSD.at(coef, cat)); 
+
+      // update gamma
+      gammaPropVec = gammaCol%arma::exp(X.col(coef)*(betaProp - betaCurr));
+      // acceptance ratio only for obs with eta = 1
+      logAcceptCSum = ldgammaDiffScale(cCol.elem(obsEtaOne),
+                                       gammaPropVec.elem(obsEtaOne),
+                                       gammaCol.elem(obsEtaOne));
+
+      logAcceptProb = logAcceptCSum // density of c with proposal
+                      + R::dnorm(betaProp, 0, sd, true) // density of proposal 
+                      - R::dnorm(betaCurr, 0, sd, true); // density of current  
+      
+      if (logAcceptProb > std::log(R::runif(0, 1))) {
+        beta.at(coef, cat) = betaProp;
+        gammaCol = gammaPropVec;
+        betaAcceptProp.at(coef, cat)++;
+        betaAcceptCount.at(coef, cat)++;
+      }
+    }
+    gamma.col(cat) = gammaCol; // update gamma with new values
+  }
+}
+
+void sampleBetaNoZI(mat& beta, const mat& X, const mat& c, const vec& kappa,
+                    const rowvec& tau, const mat& lambda, mat& gamma,
+                    mat& betaAcceptProp, const mat& betaProposalSD, 
+                    Mat<short>& betaAcceptCount, const double firstBetaSD) {
+  const int NUM_COEF = beta.n_rows,
+            NUM_CAT = beta.n_cols,
+            NUM_OBS = c.n_rows;
+  double betaProp, logAcceptCSum, logAcceptProb, betaCurr, sd, lamTilde;
+  vec gammaPropVec(NUM_OBS), gammaCol(NUM_OBS), cCol(NUM_OBS);
+
+  for (int cat = 0; cat < NUM_CAT; cat++) {
+    gammaCol = gamma.col(cat);
+    cCol = c.col(cat);
+    
+    for (int coef = 0; coef < NUM_COEF; coef++) {
+      lamTilde = ((lambda.at(coef - 1, cat)*lambda.at(coef - 1, cat)
+                   *kappa[cat]*kappa[cat])
+                  /(kappa[cat]*kappa[cat] 
+                    + lambda.at(coef - 1, cat)*lambda.at(coef - 1, cat)
+                      *tau[cat]*tau[cat]));
+      sd = (coef == 0) ? firstBetaSD : tau[cat]*sqrt(lamTilde);
+      betaCurr = beta.at(coef, cat);
+      logAcceptCSum = 0; // reset logAcceptCSum
+      betaProp = R::rnorm(betaCurr, betaProposalSD.at(coef, cat)); 
+
+      // update gamma
+      gammaPropVec = gammaCol%arma::exp(X.col(coef)*(betaProp - betaCurr));
+      logAcceptCSum = ldgammaDiffScale(cCol, gammaPropVec, gammaCol);
+
+      logAcceptProb = logAcceptCSum // density of c with proposal
+                      + R::dnorm(betaProp, 0, sd, true) // density of proposal 
+                      - R::dnorm(betaCurr, 0, sd, true); // density of current  
+      
+      if (logAcceptProb > std::log(R::runif(0, 1))) {
+        beta.at(coef, cat) = betaProp;
+        gammaCol = gammaPropVec;
+        betaAcceptProp.at(coef, cat)++;
+        betaAcceptCount.at(coef, cat)++;
+      }
+    }
+    gamma.col(cat) = gammaCol; // update gamma with new values
+  }
+}
+
+void sampleKappa(vec& kappa, const mat& beta, const double& kappaShape,
+                 const double& kappaRate) {
+  const int NUM_CAT = kappa.n_elem,
+            NUM_PARAM = beta.n_rows - 1; // first row is intercept
+  mat betaNew = beta.rows(1, NUM_PARAM); // remove intercept
+  
+  double alphaPrime = kappaShape + NUM_PARAM*.5;
+  arma::rowvec betaPrimes = arma::sum(arma::square(betaNew), 0)/2.0 + kappaRate;
+  for (int cat = 0; cat < NUM_CAT; cat++) {
+    kappa[cat] = std::sqrt(1.0/R::rgamma(alphaPrime, 1.0/betaPrimes[cat]));
+  }
+}
+
+void sampleR(mat& r, const sp_mat& Y, const mat& c, const vec& phi, mat& gamma,
+             const int& NUM_RE_PER_ID, const uvec& ID_END_IDX, mat& rAcceptProp,
+             const double& rProposalSD, const Mat<short>& eta) {
+  const int NUM_COEF = r.n_rows,
+            NUM_CAT = r.n_cols,
+            NUM_OBS = c.n_rows;
+  unsigned int startIdx, endIdx, id;
+  double rProp, logAcceptCSum, logAcceptProb, rCurr;
+  vec gammaPropVec(NUM_OBS);
+  
+  id = 0;
+  startIdx = 0;
+  endIdx = ID_END_IDX[id];
+  for (int coef = 0; coef < NUM_COEF; coef++) {
+    vec YSub = vec(Y.col(coef).rows(startIdx, endIdx));
+    mat cIdx = c.rows(startIdx, endIdx);
+    mat gammaIdx = gamma.rows(startIdx, endIdx);
+
+    for (int cat = 0; cat < NUM_CAT; cat++) {
+      uvec idx = arma::find(eta.col(cat).subvec(startIdx, endIdx) != 0);
+
+      // if all eta = 0, then don't need to update r
+      if (idx.n_elem == 0) continue;
+      
+      vec cIdxCol = cIdx.col(cat);
+      vec gammaIdxCol = gammaIdx.col(cat);
+      rCurr = r.at(coef, cat);
+      logAcceptCSum = 0; // reset logAcceptCSum
+      rProp = R::rnorm(rCurr, rProposalSD); // get proposals
+
+      // acceptance ratio only for obs with eta = 1
+      logAcceptCSum = ldgammaDiffScale(cIdxCol.elem(idx),
+                                       gammaPropVec.elem(idx),
+                                       gammaIdxCol.elem(idx));
+      
+      logAcceptProb =  logAcceptCSum // density of c with proposal 
+                     + R::dnorm(rProp, 0, phi[cat], true) // density of proposal 
+                     - R::dnorm(rCurr, 0, phi[cat], true); // density of current 
+
+      if (logAcceptProb > std::log(R::runif(0, 1))) {
+        r.at(coef, cat) = rProp;
+        gammaIdx.col(cat) = gammaPropVec.subvec(startIdx, endIdx);
+        rAcceptProp.at(coef, cat)++;
+      }
+    }
+    gamma.rows(startIdx, endIdx) = gammaIdx;
+
+    // update id when done with all RE for id
+    if ((coef + 1) % NUM_RE_PER_ID == 0) { 
+      id++;
+      startIdx = endIdx + 1;
+      endIdx = ID_END_IDX[id];
+    }
+  }
+}
+
+void sampleRGrouped(mat& r, const sp_mat& Y, const mat& c, const vec& phi,
+                    mat& gamma, const int& NUM_RE_PER_ID,
+                    const uvec& ID_END_IDX, mat& rAcceptProp,
+                    const double& rProposalSD, const Mat<short>& eta) {
+  const int NUM_COEF = r.n_rows,
+            NUM_CAT = r.n_cols,
+            NUM_OBS = c.n_rows;
+  unsigned int startIdx, endIdx, id;
+  double rProp, logAcceptCSum, logAcceptProb, rCurr;
+  vec gammaPropVec(NUM_OBS);
+  
+  id = 0;
+  startIdx = 0;
+  endIdx = ID_END_IDX[id];
+  for (int coef = 0; coef < NUM_COEF; coef++) {
+    vec YSub = vec(Y.col(coef).rows(startIdx, endIdx));
+    mat cIdx = c.rows(startIdx, endIdx);
+    mat gammaIdx = gamma.rows(startIdx, endIdx);
+    
+    for (int cat = 0; cat < NUM_CAT; cat++) {
+      // for grouped, eta the same for all obs in group
+      // if eta = 0, then don't need to update r
+      if (eta.at(startIdx, cat) == 0) continue;
+
+      rCurr = r.at(coef, cat);
+      logAcceptCSum = 0; // reset logAcceptCSum
+      rProp = R::rnorm(rCurr, rProposalSD); // get proposals
+      
+      // update gamma
+      gammaPropVec.subvec(startIdx, endIdx) 
+                            = gammaIdx.col(cat)%arma::exp(YSub*(rProp - rCurr));
+      // acceptance ratio only for obs with eta = 1
+      logAcceptCSum = ldgammaDiffScale(cIdx.col(cat),
+                                        gammaPropVec.subvec(startIdx, endIdx),
+                                        gammaIdx.col(cat));
+      
+      logAcceptProb = logAcceptCSum // density of c with proposal 
+                     + R::dnorm(rProp, 0, phi[cat], true) // density of proposal 
+                     - R::dnorm(rCurr, 0, phi[cat], true); // density of current 
+
+      if (logAcceptProb > std::log(R::runif(0, 1))) {
+        r.at(coef, cat) = rProp;
+        gammaIdx.col(cat) = gammaPropVec.subvec(startIdx, endIdx);
+        rAcceptProp.at(coef, cat)++;
+      }
+    }
+    gamma.rows(startIdx, endIdx) = gammaIdx;
+    
+    // update id when done with all RE for id
+    if ((coef + 1) % NUM_RE_PER_ID == 0) { 
+      id++;
+      startIdx = endIdx + 1;
+      endIdx = ID_END_IDX[id];
+    }
+  }
+}
+
+void sampleRGroupedNoZI(mat& r, const sp_mat& Y, const mat& c, const vec& phi,
+                        mat& gamma, const int& NUM_RE_PER_ID,
+                        const uvec& ID_END_IDX, mat& rAcceptProp,
+                        const double& rProposalSD) {
+  const int NUM_COEF = r.n_rows,
+            NUM_CAT = r.n_cols,
+            NUM_OBS = c.n_rows;
+  unsigned int startIdx, endIdx, id;
+  double rProp, logAcceptCSum, logAcceptProb, rCurr;
+  vec gammaPropVec(NUM_OBS);
+  
+  id = 0;
+  startIdx = 0;
+  endIdx = ID_END_IDX[id];
+  for (int coef = 0; coef < NUM_COEF; coef++) {
+    vec YSub = vec(Y.col(coef).rows(startIdx, endIdx));
+    mat cIdx = c.rows(startIdx, endIdx);
+    mat gammaIdx = gamma.rows(startIdx, endIdx);
+    
+    for (int cat = 0; cat < NUM_CAT; cat++) {
+      rCurr = r.at(coef, cat);
+      logAcceptCSum = 0; // reset logAcceptCSum
+      rProp = R::rnorm(rCurr, rProposalSD); // get proposals
+      
+      // update gamma
+      gammaPropVec.subvec(startIdx, endIdx) 
+                            = gammaIdx.col(cat)%arma::exp(YSub*(rProp - rCurr));
+      logAcceptCSum = ldgammaDiffScale(cIdx.col(cat),
+                                        gammaPropVec.subvec(startIdx, endIdx),
+                                        gammaIdx.col(cat));
+      
+      logAcceptProb = logAcceptCSum // density of c with proposal 
+                     + R::dnorm(rProp, 0, phi[cat], true) // density of proposal 
+                     - R::dnorm(rCurr, 0, phi[cat], true); // density of current 
+
+      if (logAcceptProb > std::log(R::runif(0, 1))) {
+        r.at(coef, cat) = rProp;
+        gammaIdx.col(cat) = gammaPropVec.subvec(startIdx, endIdx);
+        rAcceptProp.at(coef, cat)++;
+      }
+    }
+    gamma.rows(startIdx, endIdx) = gammaIdx;
+    
+    // update id when done with all RE for id
+    if ((coef + 1) % NUM_RE_PER_ID == 0) { 
+      id++;
+      startIdx = endIdx + 1;
+      endIdx = ID_END_IDX[id];
+    }
+  }
+}
+
+void samplePhi(vec& phi, const mat& r, const int& NUM_RE_PER_ID, 
+                 const double& phiShape, const double& phiRate) {
+  const int NUM_CAT = phi.n_elem,
+            NUM_ROW = r.n_rows;
+  
+  double alphaPrime = phiShape + NUM_ROW*NUM_RE_PER_ID*.5; // NUM_RE_PER_ID = 1 
+                                                    // until model is exteneded
+  arma::rowvec betaPrimes = arma::sum(arma::square(r), 0)/2.0 + phiRate;
+  for (int cat = 0; cat < NUM_CAT; cat++) {
+    phi[cat] = std::sqrt(1.0/R::rgamma(alphaPrime, 1.0/betaPrimes[cat]));
+  }
+}
+
+void sampleLambda(mat& lambda, const mat& beta, const mat& nu,
+                  const rowvec& tau) {
+  const int NUM_COEF = lambda.n_rows,
+            NUM_CAT = lambda.n_cols;
+  mat betaNew = beta.rows(1, NUM_COEF);
+  
+  mat betaSq = betaNew%betaNew;
+  mat betaPrimes = (1.0/nu) + betaSq.each_row()/(2.0*(tau%tau));
+  for (int cat = 0; cat < NUM_CAT; cat++) {
+    for (int coef = 0; coef < NUM_COEF; coef++) {
+      lambda.at(coef, cat) 
+                    = std::sqrt(1.0/R::rgamma(1, 1.0/betaPrimes.at(coef, cat)));                                                       
+    }
+  }
+}
+
+void sampleNu(mat& nu, const mat& lambda) {
+  const int NUM_COEF = lambda.n_rows,
+            NUM_CAT = lambda.n_cols;
+  
+  mat betaPrimes = 1.0 + (1.0/(lambda%lambda));
+  for (int coef = 0; coef < NUM_COEF; coef++) {
+    for (int cat = 0; cat < NUM_CAT; cat++) {
+      nu.at(coef, cat) = 1.0/R::rgamma(1, 1.0/betaPrimes.at(coef, cat));
+    }
+  }
+}
+
+void sampleTau(rowvec& tau, const mat& beta, const mat& lambda,
+               const rowvec& xi) {
+  const int NUM_COEF = lambda.n_rows,
+            NUM_CAT = lambda.n_cols;
+  mat betaNew = beta.rows(1, NUM_COEF);
+  
+  double alphaPrime = (NUM_COEF + 1.0)/2.0;
+  mat betaLambdas = (betaNew%betaNew)/(2.0*(lambda%lambda));
+  rowvec betaPrimes = arma::sum(betaLambdas, 0) + (1.0/xi);
+  for (int cat = 0; cat < NUM_CAT; cat++) {
+    tau[cat] = std::sqrt(1.0/R::rgamma(alphaPrime, 1.0/betaPrimes[cat]));
+  }
+}
+
+void sampleXi(rowvec& xi, const rowvec& tau) {
+  const int NUM_CAT = xi.n_elem;
+  
+  rowvec betaPrimes = 1.0 + (1.0/(tau%tau));
+  for (int cat = 0; cat < NUM_CAT; cat++) {
+    xi[cat] = 1.0/R::rgamma(1, 1.0/betaPrimes[cat]);
+  }
+}
+
+void printProgress(int i, int ITER) {
+  int barWidth = 50;
+  double progress = static_cast<double>(i) / ITER;
+  Rcout << "\r[";
+  int pos = static_cast<int>(barWidth * progress);
+  for (int j = 0; j < barWidth; ++j) {
+    if (j < pos)
+      Rcout << "=";
+    else if (j == pos)
+      Rcout << ">";
+    else
+      Rcout << " ";
+  }
+  Rcout << "] " << static_cast<int>(progress * 100) << "% - " << i << "/" 
+        << ITER << " iterations" << std::flush;
+  if (i == ITER) {
+    Rcout << "\n";
+  }
+}
+
+#endif

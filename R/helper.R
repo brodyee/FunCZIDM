@@ -2,12 +2,13 @@
 # FunCZIDM.R. 
 # Author: Brody Erlandson
 
-getBasisX <- function(X, varyingCov, covWithVC, df = 4, degree=3, basisFunc=bs) {
+getBasisX <- function(X, varyingCov, covWithVC, df = 4, degree=3,
+                      basisFunc=bs) {
   # Adds nessary columns to X to include varying coefficients. That is,
   # the basis functions of the varying variable element-wise multiplied by each 
   # column of X seperately. This allows for a linear fit of X with coefficients,
-  # then take the last df*lenght(varyingCov) columns of X. Each df columns are the 
-  # basis functions for the corresponding column of X in varyingCov 
+  # then take the last df*lenght(varyingCov) columns of X. Each df columns are  
+  # the basis functions for the corresponding column of X in varyingCov 
   # X: data matrix
   # varyingCov: vector of values that the coefficients will be varying with
   # covWithVC: vector of column numbers of X that will have varying coefficients
@@ -41,9 +42,10 @@ getBasisX <- function(X, varyingCov, covWithVC, df = 4, degree=3, basisFunc=bs) 
               "interiorKnots"=interiorKnots, "boundaryKnots"=boundaryKnots))
 }
 
-getNullInBetaCIProportion <- function(output, XvartoXColMapping, colMapping, varyingCov, catNames,
-                             interiorKnots, boundaryKnots, basisFunc=splines::bs, df=4,
-                             fileName = "") {
+getNullInBetaCIProportion <- function(output, XvartoXColMapping, colMapping,
+                                      varyingCov, catNames, interiorKnots, 
+                                      boundaryKnots, basisFunc=splines::bs, 
+                                      df=4, fileName = "") {
   # Extracts the null in CI statistics from the output of FunCZIDM
   # output: output of FunCZIDM
   # nullFileName: file name to save the null in CI statistics
@@ -97,18 +99,18 @@ getNullInBetaCIProportion <- function(output, XvartoXColMapping, colMapping, var
   }
 }
 
-errorChecksFunCZIDM <- function(counts, covariates, ids, varyingCov, rCols, 
+errorChecksFunCZIDM <- function(counts, covariates, ids, varyingCov, 
                                 iter, burnIn, thin, adjustFreq, proposalCap,
                                 ZIGrouped, returnBurnIn, printProgress, 
                                 toReturn, betaInitial, rInitial, priors, 
-                                proposalVars, covWithVC, df, degree, basisFunc, 
+                                proposalVars, covWithoutVC, df, degree, basisFunc, 
                                 saveToFile, fileName, saveNullInBetaCI, 
                                 nullInBetaCIFileName) {
-  nullsAllowed <- c("rCols", "toReturn", "betaInitial", "rInitial", "priors", 
-                    "proposalVars", "covWithVC")
+  nullsAllowed <- c("toReturn", "betaInitial", "rInitial", "priors", 
+                    "proposalVars", "covWithoutVC")
 
-  nonNegInt <- c("counts", "ids", "rCols", "iter", "burnIn", "thin", 
-                 "adjustFreq", "covWithVC")
+  nonNegInt <- c("counts", "ids", "iter", "burnIn", "thin", 
+                 "adjustFreq", "covWithoutVC")
   for (name in nonNegInt) {
     if (name %in% nullsAllowed && is.null(get(name))) {
       next # Allow NULL values for these parameters
@@ -135,7 +137,7 @@ errorChecksFunCZIDM <- function(counts, covariates, ids, varyingCov, rCols,
     checkMatrix(get(name), name, numericOnly = TRUE)
   }
 
-  vector <- c("rCols", "covWithVC", "ids", "varyingCov")
+  vector <- c("covWithoutVC", "ids", "varyingCov")
   for (name in vector) {
     if (name %in% nullsAllowed && is.null(get(name))) {
       next # Allow NULL values for these parameters
@@ -151,14 +153,6 @@ errorChecksFunCZIDM <- function(counts, covariates, ids, varyingCov, rCols,
     checkList(get(name), name)
   }
 
-  checkIdx <- c("rCols")
-  for (name in checkIdx) {
-    if (name %in% nullsAllowed && is.null(get(name))) {
-      next # Allow NULL values for these parameters
-    }
-    checkLessThanOrEqualTo(get(name), ncol(covariates), name)
-  }
-  
   # checks that only have to be done once
   checkDataFrame(covariates, "covariates")
   checkDataFrameTypes(covariates, "covariates")
@@ -174,12 +168,15 @@ errorChecksFunCZIDM <- function(counts, covariates, ids, varyingCov, rCols,
                                          "a" = "non-negative", 
                                          "b" = "non-negative",
                                          "alpha" = "non-negative",
-                                         "beta" = "non-negative"),
+                                         "beta" = "non-negative",
+                                         "kappaShape" = "non-negative",
+                                         "kappaRate" = "non-negative"),
                             "priors")
   }
   if (!is.null(proposalVars)) {
-    checkListNamesAndValues(proposalVars, list("beta proposal sd" = "non-negative",
-                                               "r proposal sd" = "non-negative"),
+    checkListNamesAndValues(proposalVars, 
+                            list("beta proposal sd" = "non-negative",
+                            "r proposal sd" = "non-negative"),
                             "proposal variances")
   }
 }
@@ -356,4 +353,29 @@ makeBlockMatrix <- function(X, RAND_EFF_COLS, UNIQUE_OBS_ID) {
   }
 
   return(blockMatrix)
+}
+
+getCenterScaledCovProfile <- function(covVals, centerScaleList) {
+  for (i in 1:length(centerScaleList)) {
+    if (is.character(centerScaleList[[i]]) || is.null(centerScaleList[[i]])) {
+      covVals[i] <- ifelse(covVals[i] == 1, 1, 0)
+    } else {
+      covVals[i] <- round((covVals[i] 
+                   - centerScaleList[[i]]$center)/centerScaleList[[i]]$scale, 4)
+    }
+  }
+
+  return(covVals)
+}
+
+getCenterScaledChange <- function(change, centerScaleList, covIdx, covVals) {
+  if (is.character(centerScaleList[[covIdx]]) 
+      || is.null(centerScaleList[[covIdx]])) {
+    # If the covariate is a categorical variable, then the change is not scaled.
+    change <- ifelse(covVals[covIdx] == 1, -1, 1)
+    return(change)
+  } else {
+    # If the covariate is a continuous variable, then scale the change.
+    return(change / centerScaleList[[covIdx]]$scale)
+  }
 }

@@ -4,7 +4,7 @@
 \alias{generateData}
 \title{Generate Data}
 \usage{
-generateData(n, c, p, totalCountRange = c(100, 200))
+generateData(n, c, p, totalCountRange = c(100, 200), numActive = 4)
 }
 \arguments{
 \item{n}{(integer) Number of individuals.}
@@ -15,6 +15,9 @@ generateData(n, c, p, totalCountRange = c(100, 200))
 
 \item{totalCountRange}{(numeric vector, default=c(100, 200)) Range of total
 counts.}
+
+\item{numActive}{(integer, default=4) Number of categories with active
+covariates. Alway 1:numActive categories are active.}
 }
 \value{
 A list containing the generated data: counts, covariates, ids,

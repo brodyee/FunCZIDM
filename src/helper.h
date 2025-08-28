@@ -332,14 +332,15 @@ double ldgammaDiffScale(vec x, vec shape1, vec shape2) {
                    - (shape2 - 1)%arma::log(x) + arma::lgamma(shape2));
 }
  
-void sampleBeta(mat& beta, const mat& X, const mat& c, const rowvec& tau,
-                const mat& lambda, mat& gamma, mat& betaAcceptProp,
-                const mat& betaProposalSD, Mat<short>& betaAcceptCount,
-                const Mat<short>& eta, const double firstBetaSD) {
+void sampleBeta(mat& beta, const mat& X, const mat& c, const vec& kappa,
+                const rowvec& tau, const mat& lambda, mat& gamma, 
+                mat& betaAcceptProp, const mat& betaProposalSD, 
+                Mat<short>& betaAcceptCount, const Mat<short>& eta, 
+                const double firstBetaSD) {
   const int NUM_COEF = beta.n_rows,
             NUM_CAT = beta.n_cols,
             NUM_OBS = c.n_rows;
-  double betaProp, logAcceptCSum, logAcceptProb, betaCurr, sd;
+  double betaProp, logAcceptCSum, logAcceptProb, betaCurr, sd, lamTilde;
   vec gammaPropVec(NUM_OBS), gammaCol(NUM_OBS), cCol(NUM_OBS);
 
   for (int cat = 0; cat < NUM_CAT; cat++) {
@@ -348,7 +349,12 @@ void sampleBeta(mat& beta, const mat& X, const mat& c, const rowvec& tau,
     cCol = c.col(cat);
     
     for (int coef = 0; coef < NUM_COEF; coef++) {
-      sd = (coef == 0) ? firstBetaSD : lambda.at(coef - 1, cat)*tau[cat];
+      lamTilde = ((lambda.at(coef - 1, cat)*lambda.at(coef - 1, cat)
+                   *kappa[cat]*kappa[cat])
+                  /(kappa[cat]*kappa[cat] 
+                    + lambda.at(coef - 1, cat)*lambda.at(coef - 1, cat)
+                      *tau[cat]*tau[cat]));
+      sd = (coef == 0) ? firstBetaSD : tau[cat]*sqrt(lamTilde);
       betaCurr = beta.at(coef, cat);
       logAcceptCSum = 0; // reset logAcceptCSum
       betaProp = R::rnorm(betaCurr, betaProposalSD.at(coef, cat)); 
@@ -372,6 +378,19 @@ void sampleBeta(mat& beta, const mat& X, const mat& c, const rowvec& tau,
       }
     }
     gamma.col(cat) = gammaCol; // update gamma with new values
+  }
+}
+
+void sampleKappa(vec& kappa, const mat& beta, const double& kappaShape,
+                 const double& kappaRate) {
+  const int NUM_CAT = kappa.n_elem,
+            NUM_PARAM = beta.n_rows - 1; // first row is intercept
+  mat betaNew = beta.rows(1, NUM_PARAM); // remove intercept
+  
+  double alphaPrime = kappaShape + NUM_PARAM*.5;
+  arma::rowvec betaPrimes = arma::sum(arma::square(betaNew), 0)/2.0 + kappaRate;
+  for (int cat = 0; cat < NUM_CAT; cat++) {
+    kappa[cat] = std::sqrt(1.0/R::rgamma(alphaPrime, 1.0/betaPrimes[cat]));
   }
 }
 
@@ -405,16 +424,6 @@ void sampleR(mat& r, const sp_mat& Y, const mat& c, const vec& phi, mat& gamma,
       logAcceptCSum = 0; // reset logAcceptCSum
       rProp = R::rnorm(rCurr, rProposalSD); // get proposals
       
-      /* TODO : Delete this if compiles
-      gammaPropVec.subvec(startIdx, endIdx) = gammaIdx.col(cat)%arma::exp(YSub*(rProp - rCurr));
-      for (int obs = startIdx; obs <= endIdx; obs++) { 
-        if (eta.at(obs, cat) != 0) {
-          logAcceptCSum += (R::dgamma(c.at(obs, cat), gammaPropVec[obs],
-                                      1, true) // density of c with proposal
-                              - R::dgamma(c.at(obs, cat), gamma.at(obs, cat),
-                                          1, true)); // density of c with current
-        }
-      }*/
       // acceptance ratio only for obs with eta = 1
       logAcceptCSum = ldgammaDiffScale(cIdxCol.elem(idx),
                                        gammaPropVec.elem(idx),
@@ -441,8 +450,9 @@ void sampleR(mat& r, const sp_mat& Y, const mat& c, const vec& phi, mat& gamma,
   }
 }
 
-void sampleRGrouped(mat& r, const sp_mat& Y, const mat& c, const vec& phi, mat& gamma,
-                    const int& NUM_RE_PER_ID, const uvec& ID_END_IDX, mat& rAcceptProp,
+void sampleRGrouped(mat& r, const sp_mat& Y, const mat& c, const vec& phi,
+                    mat& gamma, const int& NUM_RE_PER_ID, 
+                    const uvec& ID_END_IDX, mat& rAcceptProp,
                     const double& rProposalSD, const Mat<short>& eta) {
   const int NUM_COEF = r.n_rows,
             NUM_CAT = r.n_cols,
@@ -469,7 +479,8 @@ void sampleRGrouped(mat& r, const sp_mat& Y, const mat& c, const vec& phi, mat& 
       rProp = R::rnorm(rCurr, rProposalSD); // get proposals
       
       // update gamma
-      gammaPropVec.subvec(startIdx, endIdx) = gammaIdx.col(cat)%arma::exp(YSub*(rProp - rCurr));
+      gammaPropVec.subvec(startIdx, endIdx) 
+                            = gammaIdx.col(cat)%arma::exp(YSub*(rProp - rCurr));
       // acceptance ratio only for obs with eta = 1
       logAcceptCSum = ldgammaDiffScale(cIdx.col(cat),
                                         gammaPropVec.subvec(startIdx, endIdx),
@@ -501,7 +512,8 @@ void samplePhi(vec& phi, const mat& r, const int& NUM_RE_PER_ID,
   const int NUM_CAT = phi.n_elem,
             NUM_ROW = r.n_rows;
   
-  double alphaPrime = phiShape + NUM_ROW*NUM_RE_PER_ID*.5;
+  double alphaPrime = phiShape + NUM_ROW*NUM_RE_PER_ID*.5; // NUM_RE_PER_ID = 1 
+                                                     // until model is exteneded
   arma::rowvec betaPrimes = arma::sum(arma::square(r), 0)/2.0 + phiRate;
   for (int cat = 0; cat < NUM_CAT; cat++) {
     phi[cat] = std::sqrt(1.0/R::rgamma(alphaPrime, 1.0/betaPrimes[cat]));
@@ -518,7 +530,8 @@ void sampleLambda(mat& lambda, const mat& beta, const mat& nu,
   mat betaPrimes = (1.0/nu) + betaSq.each_row()/(2.0*(tau%tau));
   for (int cat = 0; cat < NUM_CAT; cat++) {
     for (int coef = 0; coef < NUM_COEF; coef++) {
-      lambda.at(coef, cat) = std::sqrt(1.0/R::rgamma(1, 1.0/betaPrimes.at(coef, cat)));                                                       
+      lambda.at(coef, cat) 
+                    = std::sqrt(1.0/R::rgamma(1, 1.0/betaPrimes.at(coef, cat)));                                                       
     }
   }
 }
@@ -571,8 +584,8 @@ void printProgress(int i, int ITER) {
     else
       Rcout << " ";
   }
-  Rcout << "] " << static_cast<int>(progress * 100) << "% - " << i << "/" << ITER
-        << " iterations" << std::flush;
+  Rcout << "] " << static_cast<int>(progress * 100) << "% - " << i 
+        << "/" << ITER << " iterations" << std::flush;
   if (i == ITER) {
     Rcout << "\n";
   }
@@ -585,19 +598,26 @@ void printProgress(int i, int ITER) {
 // ---- Fit related functions ----
 
 //[[Rcpp::export]]
-arma::cube getFit(const arma::cube& beta, const arma::mat& basis, const arma::vec& covariates) {
+arma::cube getFit(const arma::cube& beta, const arma::mat& basis,
+                  const arma::vec& covariates, const arma::vec& covIdxs) {
   const int NUM_PARAM = beta.n_rows,
             NUM_CAT = beta.n_cols,
             NUM_SAMPLE = beta.n_slices,
             NUM_TESTPOINTS = basis.n_rows,
             NUM_DF = basis.n_cols;
-  mat Xtv(NUM_TESTPOINTS, NUM_PARAM);
+  mat Xtv(NUM_TESTPOINTS, NUM_PARAM),
+      ones(NUM_TESTPOINTS, 1, arma::fill::ones);
   cube fit(NUM_TESTPOINTS, NUM_CAT, NUM_SAMPLE);
 
   int startIdx = 0;
-  int endIdx = NUM_DF - 1;
+  int endIdx = NUM_DF - 1; // intercept is always varying, so this is endIdx
   for (int cov = 0; cov < covariates.n_elem; cov++) {
-    Xtv.cols(startIdx, endIdx) = basis*covariates[cov];
+    if (covIdxs[startIdx] != covIdxs[endIdx]) {
+      endIdx = startIdx; // cov not varying, so endIdx is startIdx
+      Xtv.cols(startIdx, endIdx) = ones*covariates[cov];
+    } else {
+      Xtv.cols(startIdx, endIdx) = basis*covariates[cov];
+    } 
     startIdx = endIdx + 1;
     endIdx += NUM_DF;
   }
@@ -640,7 +660,8 @@ arma::cube getFitOfData(const arma::cube& beta, const arma::mat& Xtv) {
 }
 
 //[[Rcpp::export]]
-arma::cube getRAFits(const arma::cube& beta, const arma::mat& basis, const arma::vec& covariates) {
+arma::cube getRAFits(const arma::cube& beta, const arma::mat& basis,
+                     const arma::vec& covariates, const arma::vec& covIdxs) {
   /*
    covariates (vec): The first cov must be a 1 for the intercept, the rest will 
    be the covariate profile.
@@ -651,12 +672,18 @@ arma::cube getRAFits(const arma::cube& beta, const arma::mat& basis, const arma:
             NUM_TESTPOINTS = basis.n_rows,
             NUM_DF = basis.n_cols;
   cube fit(NUM_TESTPOINTS, NUM_CAT, NUM_SAMPLE);
-  mat Xtv(NUM_TESTPOINTS, NUM_PARAM);
+  mat Xtv(NUM_TESTPOINTS, NUM_PARAM),
+      ones(NUM_TESTPOINTS, 1, arma::fill::ones);
 
   int startIdx = 0;
   int endIdx = NUM_DF - 1;
   for (int cov = 0; cov < covariates.n_elem; cov++) {
-    Xtv.cols(startIdx, endIdx) = basis*covariates[cov];
+    if (covIdxs[startIdx] != covIdxs[endIdx]) {
+      endIdx = startIdx; // cov not varying, so endIdx is startIdx
+      Xtv.cols(startIdx, endIdx) = ones*covariates[cov];
+    } else {
+      Xtv.cols(startIdx, endIdx) = basis*covariates[cov];
+    } 
     startIdx = endIdx + 1;
     endIdx += NUM_DF;
   }
@@ -684,7 +711,8 @@ arma::cube getRAFitsPrecalc(const arma::cube& fit, const arma::mat& sumExpFit) {
 }
 
 //[[Rcpp::export]]
-arma::cube getBetaVC(const arma::cube& beta, const arma::uvec VCRows, const arma::mat& basis) {
+arma::cube getBetaVC(const arma::cube& beta, const arma::uvec VCRows, 
+                     const arma::mat& basis) {
   const int NUM_CAT = beta.n_cols,
             NUM_SAMPLE = beta.n_slices,
             NUM_TESTPOINTS = basis.n_rows,
@@ -702,8 +730,9 @@ arma::cube getBetaVC(const arma::cube& beta, const arma::uvec VCRows, const arma
 // ---- Statistics related functions ----
 
 //[[Rcpp::export]]
-arma::mat getHillDiversity(const arma::cube& beta, const arma::mat& basis, const arma::vec& covariates,
-                     const double l = 0) {
+arma::mat getHillDiversity(const arma::cube& beta, const arma::mat& basis, 
+                           const arma::vec& covariates,
+                           const arma::vec& covIdxs, const double l = 0) {
   /*
    covariates (vec): The first cov must be a 1 for the intercept, the rest will 
    be the covariate profile.
@@ -715,12 +744,18 @@ arma::mat getHillDiversity(const arma::cube& beta, const arma::mat& basis, const
             NUM_DF = basis.n_cols;
   mat fit(NUM_TESTPOINTS, NUM_CAT),
       aDiv(NUM_TESTPOINTS, NUM_SAMPLE),
-      Xtv(NUM_TESTPOINTS, NUM_PARAM);
+      Xtv(NUM_TESTPOINTS, NUM_PARAM),
+      ones(NUM_TESTPOINTS, 1, arma::fill::ones);
   
   int startIdx = 0;
   int endIdx = NUM_DF - 1;
   for (int cov = 0; cov < covariates.n_elem; cov++) {
-    Xtv.cols(startIdx, endIdx) = basis*covariates[cov];
+    if (covIdxs[startIdx] != covIdxs[endIdx]) {
+      endIdx = startIdx; // cov not varying, so endIdx is startIdx
+      Xtv.cols(startIdx, endIdx) = ones*covariates[cov];
+    } else {
+      Xtv.cols(startIdx, endIdx) = basis*covariates[cov];
+    } 
     startIdx = endIdx + 1;
     endIdx += NUM_DF;
   }
@@ -741,9 +776,10 @@ arma::mat getHillDiversity(const arma::cube& beta, const arma::mat& basis, const
 }
 
 //[[Rcpp::export]]
-arma::mat getDeltaHillDiversity(const arma::cube& betaVCFits, const arma::cube& fit, 
-                          const arma::mat& sumExpFit, const double l = 0,
-                          double change = 1) {
+arma::mat getDeltaHillDiversity(const arma::cube& betaVCFits, 
+                                const arma::cube& fit, 
+                                const arma::mat& sumExpFit, const double l = 0,
+                                double change = 1) {
   const int NUM_ROWS    = betaVCFits.n_rows,
             NUM_SAMPLE  = betaVCFits.n_slices;
   
@@ -758,10 +794,10 @@ arma::mat getDeltaHillDiversity(const arma::cube& betaVCFits, const arma::cube& 
     fitRATo.slice(s).each_col() /= sumExpFitTo.col(s);
   }
 
-  cube aDiv = (l != 0) ? (cube) arma::pow(sum(fitRAFrom%pow(fitRAFrom, -1*l), 1)
-                                /sum(fitRATo%pow(fitRATo, -1*l), 1), 1/l)
-                       : (cube) sum(fitRAFrom%log(fitRAFrom), 1)
-                                /sum(fitRATo%log(fitRATo), 1);
+  cube aDiv = (l != 0) ? (cube) arma::pow(sum(fitRATo%pow(fitRATo, -1*l), 1)
+                                /sum(fitRAFrom%pow(fitRAFrom, -1*l), 1), 1/l)
+                       : (cube) sum(fitRATo%log(fitRATo), 1)
+                                /sum(fitRAFrom%log(fitRAFrom), 1);
   aDiv.reshape(NUM_ROWS, NUM_SAMPLE, 1);
   mat ret = aDiv.slice(0);
   
@@ -769,9 +805,10 @@ arma::mat getDeltaHillDiversity(const arma::cube& betaVCFits, const arma::cube& 
 } // previously getHillDivMultiChange
 
 //[[Rcpp::export]]
-arma::mat getDeltaHillDivMeanAndCI(const arma::cube& betaVCFits, const arma::cube& fit, 
-                          const arma::mat& sumExpFit, const double l = 0,
-                          double change = 1) {
+arma::mat getDeltaHillDivMeanAndCI(const arma::cube& betaVCFits,
+                                   const arma::cube& fit, 
+                                   const arma::mat& sumExpFit, 
+                                   const double l = 0, double change = 1) {
   const int NUM_ROWS    = betaVCFits.n_rows,
             NUM_SAMPLE  = betaVCFits.n_slices;
   
@@ -786,10 +823,10 @@ arma::mat getDeltaHillDivMeanAndCI(const arma::cube& betaVCFits, const arma::cub
     fitRATo.slice(s).each_col() /= sumExpFitTo.col(s);
   }
 
-  cube aDiv = (l != 0) ? (cube) arma::pow(sum(fitRAFrom%pow(fitRAFrom, -1*l), 1)
-                                /sum(fitRATo%pow(fitRATo, -1*l), 1), 1/l)
-                       : (cube) sum(fitRAFrom%log(fitRAFrom), 1)
-                                /sum(fitRATo%log(fitRATo), 1);
+  cube aDiv = (l != 0) ? (cube) arma::pow(sum(fitRATo%pow(fitRATo, -1*l), 1)
+                                /sum(fitRAFrom%pow(fitRAFrom, -1*l), 1), 1/l)
+                       : (cube) sum(fitRATo%log(fitRATo), 1)
+                                /sum(fitRAFrom%log(fitRAFrom), 1);
   aDiv.reshape(NUM_ROWS, NUM_SAMPLE, 1);
   mat ret = aDiv.slice(0);
   
@@ -804,7 +841,7 @@ arma::mat getDeltaHillDivMeanAndCI(const arma::cube& betaVCFits, const arma::cub
 
 //[[Rcpp::export]]
 arma::cube getAllCatDeltaRA(const arma::cube& betaVCFits, const arma::cube& fit,
-                     const arma::mat& sumExpFit, double change = 1) {
+                            const arma::mat& sumExpFit, double change = 1) {
   const int NUM_ROWS = betaVCFits.n_rows,
             NUM_CAT = betaVCFits.n_cols,
             NUM_SAMPLE  = betaVCFits.n_slices;
@@ -825,8 +862,9 @@ arma::cube getAllCatDeltaRA(const arma::cube& betaVCFits, const arma::cube& fit,
 } 
 
 //[[Rcpp::export]]
-arma::mat getDeltaRA(const int cat, const arma::cube& betaVCFits, const arma::cube& fit,
-               const arma::mat& sumExpFit, double change = 1) {
+arma::mat getDeltaRA(const int cat, const arma::cube& betaVCFits,
+                     const arma::cube& fit, const arma::mat& sumExpFit,
+                     double change = 1) {
   const int NUM_ROWS    = betaVCFits.n_rows,
             NUM_SAMPLE  = betaVCFits.n_slices;
 
@@ -876,9 +914,11 @@ double aitchison_distance(const arma::vec& xi, const arma::vec& xj) {
 // ---- Finding cov for significant statistics related functions ----
 
 //[[Rcpp::export]]
-arma::uvec getSignifCovProfileRA(const arma::cube& betaVCFits, const arma::mat& betaVCFit,
-                           const arma::cube& fit, const arma::mat& sumExpFit,
-                           const double change = 1) {
+arma::uvec getSignifCovProfileRA(const arma::cube& betaVCFits, 
+                                 const arma::mat& betaVCFit,
+                                 const arma::cube& fit,
+                                 const arma::mat& sumExpFit, 
+                                 const double change = 1) {
   const int NUM_ROWS    = betaVCFits.n_rows,
             NUM_SAMPLE  = betaVCFits.n_slices;
   
@@ -951,13 +991,14 @@ arma::vec computeFunction(const arma::vec& t, int funcNum) {
 }
 
 //[[Rcpp::export]]
-arma::vec getTrueVCRAFromMat(const arma::mat& trueIntercepts, const arma::vec& testPoints,
-                       int catToCheck, const arma::vec& funcInfo,
-                       double xCenter = 0, bool interceptTV = false) {
-  // TODO: Fix this to work with xCenter != 0
+arma::vec getTrueVCRAFromMat(const arma::mat& trueIntercepts, 
+                             const arma::vec& testPoints, int catToCheck, 
+                             const arma::vec& funcInfo, 
+                             bool interceptTV = false) {
   const int NUM_ROWS = testPoints.n_elem,
             NUM_CAT = funcInfo.n_elem;
   double funcNum, plusMinusOne;//scale;
+  double xCenter = 0;
   mat X(NUM_ROWS, trueIntercepts.n_rows, fill::ones),
       fit(NUM_ROWS, NUM_CAT, fill::zeros);
   vec vcra(NUM_ROWS, fill::zeros),
@@ -987,10 +1028,10 @@ arma::vec getTrueVCRAFromMat(const arma::mat& trueIntercepts, const arma::vec& t
 }
 
 //[[Rcpp::export]]
-arma::vec getTrueHillDivMultiChange(const arma::mat& baseFit, const arma::vec& testPoints,
-                              const arma::vec& funcInfo, const double l = 0,
-                              double change = 1) {
-  // TODO: Fix this to work with xCenter != 0 
+arma::vec getTrueHillDivMultiChange(const arma::mat& baseFit, 
+                                    const arma::vec& testPoints, 
+                                    const arma::vec& funcInfo, 
+                                    const double l = 0, double change = 1) {
   const int NUM_ROWS = testPoints.n_elem,
             NUM_CAT = funcInfo.n_elem;
   double funcNum, plusMinusOne;//scale;
@@ -1015,8 +1056,9 @@ arma::vec getTrueHillDivMultiChange(const arma::mat& baseFit, const arma::vec& t
   vec sumExpFitTo = sum(fitRATo, 1);
   fitRATo.each_col() /= sumExpFitTo;
 
-  mat aDiv = (l != 0) ? (mat) arma::pow(sum(fitRAFrom%arma::pow(fitRAFrom, -1*l), 1)
-                                /sum(fitRATo%arma::pow(fitRATo, -1*l), 1), 1/l)
+  mat aDiv = (l != 0) ? 
+                    (mat) arma::pow(sum(fitRAFrom%arma::pow(fitRAFrom, -1*l), 1)
+                                 /sum(fitRATo%arma::pow(fitRATo, -1*l), 1), 1/l)
                        : (mat) sum(fitRAFrom%log(fitRAFrom), 1)
                          /sum(fitRATo%log(fitRATo), 1);
   aDiv.reshape(NUM_ROWS, 1);

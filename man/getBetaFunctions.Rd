@@ -9,8 +9,9 @@ getBetaFunctions(output, cov = NULL)
 \arguments{
 \item{output}{(list) Output list returned from \code{FunCZIDM}}
 
-\item{cov}{(integer, default=NULL) The index of \code{covariates} from \code{FunCZIDM}
-for which \eqn{\beta_{jp}(t)} functions to extract. Intercept if NULL.}
+\item{cov}{(integer, default=NULL) The index of \code{covariates} from
+\code{FunCZIDM} for which \eqn{\beta_{jp}(t)} functions to extract.
+Intercept if NULL.}
 }
 \value{
 A 3-dimensional array of \eqn{\beta_{jp}(t)} function samples for

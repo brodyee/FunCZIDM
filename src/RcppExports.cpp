@@ -41,15 +41,16 @@ BEGIN_RCPP
 END_RCPP
 }
 // getFit
-arma::cube getFit(const arma::cube& beta, const arma::mat& basis, const arma::vec& covariates);
-RcppExport SEXP _FunCZIDM_getFit(SEXP betaSEXP, SEXP basisSEXP, SEXP covariatesSEXP) {
+arma::cube getFit(const arma::cube& beta, const arma::mat& basis, const arma::vec& covariates, const arma::vec& covIdxs);
+RcppExport SEXP _FunCZIDM_getFit(SEXP betaSEXP, SEXP basisSEXP, SEXP covariatesSEXP, SEXP covIdxsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const arma::cube& >::type beta(betaSEXP);
     Rcpp::traits::input_parameter< const arma::mat& >::type basis(basisSEXP);
     Rcpp::traits::input_parameter< const arma::vec& >::type covariates(covariatesSEXP);
-    rcpp_result_gen = Rcpp::wrap(getFit(beta, basis, covariates));
+    Rcpp::traits::input_parameter< const arma::vec& >::type covIdxs(covIdxsSEXP);
+    rcpp_result_gen = Rcpp::wrap(getFit(beta, basis, covariates, covIdxs));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -77,15 +78,16 @@ BEGIN_RCPP
 END_RCPP
 }
 // getRAFits
-arma::cube getRAFits(const arma::cube& beta, const arma::mat& basis, const arma::vec& covariates);
-RcppExport SEXP _FunCZIDM_getRAFits(SEXP betaSEXP, SEXP basisSEXP, SEXP covariatesSEXP) {
+arma::cube getRAFits(const arma::cube& beta, const arma::mat& basis, const arma::vec& covariates, const arma::vec& covIdxs);
+RcppExport SEXP _FunCZIDM_getRAFits(SEXP betaSEXP, SEXP basisSEXP, SEXP covariatesSEXP, SEXP covIdxsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const arma::cube& >::type beta(betaSEXP);
     Rcpp::traits::input_parameter< const arma::mat& >::type basis(basisSEXP);
     Rcpp::traits::input_parameter< const arma::vec& >::type covariates(covariatesSEXP);
-    rcpp_result_gen = Rcpp::wrap(getRAFits(beta, basis, covariates));
+    Rcpp::traits::input_parameter< const arma::vec& >::type covIdxs(covIdxsSEXP);
+    rcpp_result_gen = Rcpp::wrap(getRAFits(beta, basis, covariates, covIdxs));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -115,16 +117,17 @@ BEGIN_RCPP
 END_RCPP
 }
 // getHillDiversity
-arma::mat getHillDiversity(const arma::cube& beta, const arma::mat& basis, const arma::vec& covariates, const double l);
-RcppExport SEXP _FunCZIDM_getHillDiversity(SEXP betaSEXP, SEXP basisSEXP, SEXP covariatesSEXP, SEXP lSEXP) {
+arma::mat getHillDiversity(const arma::cube& beta, const arma::mat& basis, const arma::vec& covariates, const arma::vec& covIdxs, const double l);
+RcppExport SEXP _FunCZIDM_getHillDiversity(SEXP betaSEXP, SEXP basisSEXP, SEXP covariatesSEXP, SEXP covIdxsSEXP, SEXP lSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const arma::cube& >::type beta(betaSEXP);
     Rcpp::traits::input_parameter< const arma::mat& >::type basis(basisSEXP);
     Rcpp::traits::input_parameter< const arma::vec& >::type covariates(covariatesSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type covIdxs(covIdxsSEXP);
     Rcpp::traits::input_parameter< const double >::type l(lSEXP);
-    rcpp_result_gen = Rcpp::wrap(getHillDiversity(beta, basis, covariates, l));
+    rcpp_result_gen = Rcpp::wrap(getHillDiversity(beta, basis, covariates, covIdxs, l));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -243,8 +246,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // getTrueVCRAFromMat
-arma::vec getTrueVCRAFromMat(const arma::mat& trueIntercepts, const arma::vec& testPoints, int catToCheck, const arma::vec& funcInfo, double xCenter, bool interceptTV);
-RcppExport SEXP _FunCZIDM_getTrueVCRAFromMat(SEXP trueInterceptsSEXP, SEXP testPointsSEXP, SEXP catToCheckSEXP, SEXP funcInfoSEXP, SEXP xCenterSEXP, SEXP interceptTVSEXP) {
+arma::vec getTrueVCRAFromMat(const arma::mat& trueIntercepts, const arma::vec& testPoints, int catToCheck, const arma::vec& funcInfo, bool interceptTV);
+RcppExport SEXP _FunCZIDM_getTrueVCRAFromMat(SEXP trueInterceptsSEXP, SEXP testPointsSEXP, SEXP catToCheckSEXP, SEXP funcInfoSEXP, SEXP interceptTVSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -252,9 +255,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const arma::vec& >::type testPoints(testPointsSEXP);
     Rcpp::traits::input_parameter< int >::type catToCheck(catToCheckSEXP);
     Rcpp::traits::input_parameter< const arma::vec& >::type funcInfo(funcInfoSEXP);
-    Rcpp::traits::input_parameter< double >::type xCenter(xCenterSEXP);
     Rcpp::traits::input_parameter< bool >::type interceptTV(interceptTVSEXP);
-    rcpp_result_gen = Rcpp::wrap(getTrueVCRAFromMat(trueIntercepts, testPoints, catToCheck, funcInfo, xCenter, interceptTV));
+    rcpp_result_gen = Rcpp::wrap(getTrueVCRAFromMat(trueIntercepts, testPoints, catToCheck, funcInfo, interceptTV));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -276,13 +278,13 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_FunCZIDM_FunCZIDMSampler", (DL_FUNC) &_FunCZIDM_FunCZIDMSampler, 19},
-    {"_FunCZIDM_getFit", (DL_FUNC) &_FunCZIDM_getFit, 3},
+    {"_FunCZIDM_getFit", (DL_FUNC) &_FunCZIDM_getFit, 4},
     {"_FunCZIDM_getSumExpFit", (DL_FUNC) &_FunCZIDM_getSumExpFit, 1},
     {"_FunCZIDM_getFitOfData", (DL_FUNC) &_FunCZIDM_getFitOfData, 2},
-    {"_FunCZIDM_getRAFits", (DL_FUNC) &_FunCZIDM_getRAFits, 3},
+    {"_FunCZIDM_getRAFits", (DL_FUNC) &_FunCZIDM_getRAFits, 4},
     {"_FunCZIDM_getRAFitsPrecalc", (DL_FUNC) &_FunCZIDM_getRAFitsPrecalc, 2},
     {"_FunCZIDM_getBetaVC", (DL_FUNC) &_FunCZIDM_getBetaVC, 3},
-    {"_FunCZIDM_getHillDiversity", (DL_FUNC) &_FunCZIDM_getHillDiversity, 4},
+    {"_FunCZIDM_getHillDiversity", (DL_FUNC) &_FunCZIDM_getHillDiversity, 5},
     {"_FunCZIDM_getDeltaHillDiversity", (DL_FUNC) &_FunCZIDM_getDeltaHillDiversity, 5},
     {"_FunCZIDM_getDeltaHillDivMeanAndCI", (DL_FUNC) &_FunCZIDM_getDeltaHillDivMeanAndCI, 5},
     {"_FunCZIDM_getAllCatDeltaRA", (DL_FUNC) &_FunCZIDM_getAllCatDeltaRA, 4},
@@ -291,7 +293,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_FunCZIDM_aitchison_distance", (DL_FUNC) &_FunCZIDM_aitchison_distance, 2},
     {"_FunCZIDM_getSignifCovProfileRA", (DL_FUNC) &_FunCZIDM_getSignifCovProfileRA, 5},
     {"_FunCZIDM_getSignifCovProfileAlpha", (DL_FUNC) &_FunCZIDM_getSignifCovProfileAlpha, 3},
-    {"_FunCZIDM_getTrueVCRAFromMat", (DL_FUNC) &_FunCZIDM_getTrueVCRAFromMat, 6},
+    {"_FunCZIDM_getTrueVCRAFromMat", (DL_FUNC) &_FunCZIDM_getTrueVCRAFromMat, 5},
     {"_FunCZIDM_getTrueHillDivMultiChange", (DL_FUNC) &_FunCZIDM_getTrueHillDivMultiChange, 5},
     {NULL, NULL, 0}
 };

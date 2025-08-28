@@ -5,8 +5,8 @@ FunCZIDMSampler <- function(ITER, COUNTS, X, ID_END_IDX, RAND_EFF_COLS, BURN_IN 
     .Call(`_FunCZIDM_FunCZIDMSampler`, ITER, COUNTS, X, ID_END_IDX, RAND_EFF_COLS, BURN_IN, NUM_THIN, ADJ_FREQ, PROPOSAL_CAP, ZI_GROUPED, ADJ_PROPOSALS, RETURN_BURN_IN, CAP_PROPOSALS, PRINT_PROGRESS, TO_RETRUN, betaInitial, rInitial, priors, proposalVars)
 }
 
-getFit <- function(beta, basis, covariates) {
-    .Call(`_FunCZIDM_getFit`, beta, basis, covariates)
+getFit <- function(beta, basis, covariates, covIdxs) {
+    .Call(`_FunCZIDM_getFit`, beta, basis, covariates, covIdxs)
 }
 
 getSumExpFit <- function(fit) {
@@ -17,8 +17,8 @@ getFitOfData <- function(beta, Xtv) {
     .Call(`_FunCZIDM_getFitOfData`, beta, Xtv)
 }
 
-getRAFits <- function(beta, basis, covariates) {
-    .Call(`_FunCZIDM_getRAFits`, beta, basis, covariates)
+getRAFits <- function(beta, basis, covariates, covIdxs) {
+    .Call(`_FunCZIDM_getRAFits`, beta, basis, covariates, covIdxs)
 }
 
 getRAFitsPrecalc <- function(fit, sumExpFit) {
@@ -29,8 +29,8 @@ getBetaVC <- function(beta, VCRows, basis) {
     .Call(`_FunCZIDM_getBetaVC`, beta, VCRows, basis)
 }
 
-getHillDiversity <- function(beta, basis, covariates, l = 0) {
-    .Call(`_FunCZIDM_getHillDiversity`, beta, basis, covariates, l)
+getHillDiversity <- function(beta, basis, covariates, covIdxs, l = 0) {
+    .Call(`_FunCZIDM_getHillDiversity`, beta, basis, covariates, covIdxs, l)
 }
 
 getDeltaHillDiversity <- function(betaVCFits, fit, sumExpFit, l = 0, change = 1) {
@@ -65,8 +65,8 @@ getSignifCovProfileAlpha <- function(fit, fitBase, l = 0) {
     .Call(`_FunCZIDM_getSignifCovProfileAlpha`, fit, fitBase, l)
 }
 
-getTrueVCRAFromMat <- function(trueIntercepts, testPoints, catToCheck, funcInfo, xCenter = 0, interceptTV = FALSE) {
-    .Call(`_FunCZIDM_getTrueVCRAFromMat`, trueIntercepts, testPoints, catToCheck, funcInfo, xCenter, interceptTV)
+getTrueVCRAFromMat <- function(trueIntercepts, testPoints, catToCheck, funcInfo, interceptTV = FALSE) {
+    .Call(`_FunCZIDM_getTrueVCRAFromMat`, trueIntercepts, testPoints, catToCheck, funcInfo, interceptTV)
 }
 
 getTrueHillDivMultiChange <- function(baseFit, testPoints, funcInfo, l = 0, change = 1) {

@@ -49,21 +49,13 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
   const List PROPOSAL_VARS = (proposalVars.isNotNull()) ? as<List>(proposalVars)
                                                         : List();
   
-  /* TODO : do these in wrapper
-  const uvec RAND_EFF_COLS = (randEffCol.isNotNull()) ? as<uvec>(randEffCol) : 
-                                                        returnDefaultVec();
-  mat ones(data.n_rows, 1, fill::ones); 
-  const mat X = interceptIncluded ? data : join_rows(ones, data); 
-  const uvec ID_END_IDX = arma::cumsum(NUM_OBS_PER_ID) - 1; // - 1 for 0-indexing
-  */
-  
   // ---- Saving Samples setup ----
   const int numSamples = RETURN_BURN_IN ? ITER/NUM_THIN :
                                          (ITER - BURN_IN)/NUM_THIN; 
                                          //  floor division (int/int)
   
   // Theses you must specify to save the samples
-  mat uSamples, phiSamples, tauSamples, xiSamples;
+  mat uSamples, phiSamples, tauSamples, xiSamples, kappaSamples;
   cube cSamples, lambdaSamples, nuSamples, rSamples;
   Cube<short> etaSamples; 
   bool saveEta = isValueInCharVector(TO_RETRUN, "eta");
@@ -71,6 +63,7 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
   bool saveU = isValueInCharVector(TO_RETRUN, "u");
   bool saveR = isValueInCharVector(TO_RETRUN, "r");
   bool savePhi = isValueInCharVector(TO_RETRUN, "phi");
+  bool saveKappa = isValueInCharVector(TO_RETRUN, "kappa");
   bool saveLambda = isValueInCharVector(TO_RETRUN, "lambda");
   bool saveNu = isValueInCharVector(TO_RETRUN, "nu");
   bool saveTau = isValueInCharVector(TO_RETRUN, "tau");
@@ -81,6 +74,7 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
   if (saveU) uSamples.set_size(NUM_OBS, numSamples);
   if (saveR) rSamples.set_size(Y.n_cols, NUM_CAT, numSamples);
   if (savePhi) phiSamples.set_size(NUM_CAT, numSamples);
+  if (saveKappa) kappaSamples.set_size(NUM_CAT, numSamples);
   if (saveLambda) lambdaSamples.set_size(NUM_COEF - 1, NUM_CAT, numSamples);
   if (saveNu) nuSamples.set_size(NUM_COEF - 1, NUM_CAT, numSamples);
   if (saveTau) tauSamples.set_size(numSamples, NUM_CAT);
@@ -94,15 +88,21 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
   cube betaSamples(NUM_COEF, NUM_CAT, numSamples);
   
   // ---- Prior Specification ----
-  // Only the first beta variance, phi hyperparameters, and theta hyperparameters 
-  // can be specified. 
+  // Only the first beta variance, phi hyperparameters, and theta
+  // hyperparameters can be specified. 
   double firstBetaSD = 1., // constant component of the intercepts prior var
          phiShape = 3.,
          phiRate = 9., 
          etaAlpha = .01,
-         etaBeta = 10.;
+         etaBeta = 10.,
+         kappaShape = 100.,
+         kappaRate = 900.;
   if (PRIORS.containsElementNamed("first beta sd"))
     firstBetaSD = as<double>(PRIORS["first beta sd"]);
+  if (PRIORS.containsElementNamed("kappaShape"))
+    kappaShape = as<double>(PRIORS["kappaShape"]); 
+  if (PRIORS.containsElementNamed("kappaRate"))
+    kappaRate = as<double>(PRIORS["kappaRate"]); 
   // the individual and taxon specific covariate variance (phi) hyperparameters
   if (PRIORS.containsElementNamed("a"))
     phiShape = as<double>(PRIORS["a"]);
@@ -138,6 +138,7 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
   mat beta(NUM_COEF, NUM_CAT);
   mat r(Y.n_cols, NUM_CAT);
   vec phi(NUM_CAT);
+  vec kappa(NUM_CAT, fill::ones);
   mat lambda(NUM_COEF - 1, NUM_CAT, fill::ones);
   mat nu(NUM_COEF - 1, NUM_CAT, fill::ones);
   rowvec tau(NUM_CAT, fill::ones);
@@ -172,8 +173,9 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
       sampleEtaGrouped(eta, c, gamma, COUNTS, ID_END_IDX, etaAlpha, etaBeta);
     sampleC(c, COUNTS, u, gamma, eta);
     sampleU(u, c, COUNTS);
-    sampleBeta(beta, X, c, tau, lambda, gamma, betaAcceptProp, 
+    sampleBeta(beta, X, c, kappa, tau, lambda, gamma, betaAcceptProp, 
                betaProposalSD, betaAcceptCount, eta, firstBetaSD);
+    sampleKappa(kappa, beta, kappaShape, kappaRate);
     if (!ZI_GROUPED)
       sampleR(r, Y, c, phi, gamma, NUM_RE_PER_ID, ID_END_IDX, rAcceptProp,
              rProposalSD, eta);
@@ -204,6 +206,7 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
       if (saveU) uSamples.col(s) = u;
       if (saveR) rSamples.slice(s) = r;
       if (savePhi) phiSamples.col(s) = phi;
+      if (saveKappa) kappaSamples.col(s) = kappa;
       if (saveLambda) lambdaSamples.slice(s) = lambda;
       if (saveNu) nuSamples.slice(s) = nu;
       if (saveTau) tauSamples.row(s) = tau;
@@ -228,19 +231,20 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
                              Named("rAcceptProp") = rAcceptProp,
                              Named("rMeans") = rMeans,
                              Named("etaMeanPropZeros") = etaMeanPropZeros);
-  if (saveEta) output.attr("eta") = etaSamples;
-  if (saveC) output.attr("c") = cSamples;
+  if (saveEta) output["eta"] = etaSamples;
+  if (saveC) output["c"] = cSamples;
   if (saveRA) {
     scaleCubeRows(cSamples);
-    output.attr("RA") = cSamples; // TODO : rename in R scripts prob to RA
+    output["RA"] = cSamples; 
   }
-  if (saveU) output.attr("u") = uSamples;
-  if (saveR) output.attr("r") = rSamples;
-  if (savePhi) output.attr("phi") = phiSamples;
-  if (saveLambda) output.attr("lambda") = lambdaSamples;
-  if (saveNu) output.attr("nu") = nuSamples;
-  if (saveTau) output.attr("tau") = tauSamples;
-  if (saveXi) output.attr("xi") = xiSamples;
+  if (saveU) output["u"] = uSamples;
+  if (saveR) output["r"] = rSamples;
+  if (saveKappa) output["kappa"] = kappaSamples;
+  if (savePhi) output["phi"] = phiSamples;
+  if (saveLambda) output["lambda"] = lambdaSamples;
+  if (saveNu) output["nu"] = nuSamples;
+  if (saveTau) output["tau"] = tauSamples;
+  if (saveXi) output["xi"] = xiSamples;
                           
   return output;
 }

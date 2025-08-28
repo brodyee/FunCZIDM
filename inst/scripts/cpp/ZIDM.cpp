@@ -1,0 +1,223 @@
+/*
+ Author: Brody Erlandson
+ Last Modified: 05/22/2025 (dd/mm/yyyy)
+ 
+ This program implements an MCMC sampler for a varying coefficient 
+ zero-inflated Dirichlet-multinomial (FunC-ZIDM) regression model. 
+*/
+
+//[[Rcpp::plugins(cpp17)]]
+//[[Rcpp::depends(RcppArmadillo)]] 
+#include <RcppArmadillo.h>
+
+#include "helper.h"
+
+using namespace Rcpp;
+using namespace arma; 
+
+//[[Rcpp::export]]
+List VarCoZIDMSampler(const int ITER, const arma::umat COUNTS,
+                      const arma::mat X, 
+                      const arma::uvec ID_END_IDX,
+                      const int BURN_IN = 0,
+                      const int NUM_THIN = 1,
+                      const int ADJ_FREQ = 250,
+                      const double PROPOSAL_CAP = 0.75,
+                      const bool ZI_GROUPED = true,
+                      const bool ADJ_PROPOSALS = true,
+                      const bool RETURN_BURN_IN = false,
+                      const bool CAP_PROPOSALS = false,
+                      const bool PRINT_PROGRESS = true,
+                      const Rcpp::CharacterVector TO_RETRUN 
+                                                      = Rcpp::CharacterVector(),
+                      Nullable<arma::mat> betaInitial = R_NilValue,
+                      Nullable<List> priors = R_NilValue,
+                      Nullable<List> proposalVars = R_NilValue) { 
+  
+  /////////////////////////////////////////////////////////////////////////////
+  //////////////////////////// Initialization /////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  
+  // ---- Data setup ----
+  const int NUM_CAT = COUNTS.n_cols;
+  const int NUM_OBS = COUNTS.n_rows;
+  const int NUM_COEF = X.n_cols;
+  const List PRIORS = (priors.isNotNull()) ? as<List>(priors) : List();
+  const List PROPOSAL_VARS = (proposalVars.isNotNull()) ? as<List>(proposalVars)
+                                                        : List();
+  
+  // ---- Saving Samples setup ----
+  const int numSamples = RETURN_BURN_IN ? ITER/NUM_THIN :
+                                         (ITER - BURN_IN)/NUM_THIN; 
+                                         //  floor division (int/int)
+  
+  // Theses you must specify to save the samples
+  mat uSamples, phiSamples, tauSamples, xiSamples, kappaSamples;
+  cube cSamples, lambdaSamples, nuSamples, rSamples;
+  Cube<short> etaSamples; 
+  bool saveEta = isValueInCharVector(TO_RETRUN, "eta");
+  bool saveC = isValueInCharVector(TO_RETRUN, "c");
+  bool saveU = isValueInCharVector(TO_RETRUN, "u");
+  bool savePhi = isValueInCharVector(TO_RETRUN, "phi");
+  bool saveKappa = isValueInCharVector(TO_RETRUN, "kappa");
+  bool saveLambda = isValueInCharVector(TO_RETRUN, "lambda");
+  bool saveNu = isValueInCharVector(TO_RETRUN, "nu");
+  bool saveTau = isValueInCharVector(TO_RETRUN, "tau");
+  bool saveXi = isValueInCharVector(TO_RETRUN, "xi");
+  bool saveRA = isValueInCharVector(TO_RETRUN, "RA");
+  if (saveEta) etaSamples.set_size(NUM_OBS, NUM_CAT, numSamples);
+  if (saveC || saveRA) cSamples.set_size(NUM_OBS, NUM_CAT, numSamples); 
+  if (saveU) uSamples.set_size(NUM_OBS, numSamples);
+  if (savePhi) phiSamples.set_size(NUM_CAT, numSamples);
+  if (saveKappa) kappaSamples.set_size(NUM_CAT, numSamples);
+  if (saveLambda) lambdaSamples.set_size(NUM_COEF - 1, NUM_CAT, numSamples);
+  if (saveNu) nuSamples.set_size(NUM_COEF - 1, NUM_CAT, numSamples);
+  if (saveTau) tauSamples.set_size(numSamples, NUM_CAT);
+  if (saveXi) xiSamples.set_size(numSamples, NUM_CAT);
+  
+  // These are always saved
+  double etaMeanPropZeros = 0; // the total propotion of zeros in eta
+  mat betaAcceptProp(NUM_COEF, NUM_CAT, fill::zeros);
+  cube betaSamples(NUM_COEF, NUM_CAT, numSamples);
+  
+  // ---- Prior Specification ----
+  // Only the first beta variance, phi hyperparameters, and theta 
+  // hyperparameters can be specified. 
+  double firstBetaSD = 1., // constant component of the intercepts prior var
+         phiShape = 3.,
+         phiRate = 9., 
+         etaAlpha = .01,
+         etaBeta = 10.,
+         kappaShape = 100.,
+         kappaRate = 900.;
+  if (PRIORS.containsElementNamed("first beta sd"))
+    firstBetaSD = as<double>(PRIORS["first beta sd"]);
+  if (PRIORS.containsElementNamed("kappaShape"))
+    kappaShape = as<double>(PRIORS["kappaShape"]); 
+  if (PRIORS.containsElementNamed("kappaRate"))
+    kappaRate = as<double>(PRIORS["kappaRate"]); 
+  // the individual and taxon specific covariate variance (phi) hyperparameters
+  if (PRIORS.containsElementNamed("a"))
+    phiShape = as<double>(PRIORS["a"]);
+  if (PRIORS.containsElementNamed("b"))
+    phiRate = as<double>(PRIORS["b"]);
+  // eta's probability of 1 (theta) hyperparameters
+  if (PRIORS.containsElementNamed("alpha"))
+    etaAlpha = as<double>(PRIORS["alpha"]);
+  if (PRIORS.containsElementNamed("beta"))
+    etaBeta = as<double>(PRIORS["beta"]);
+
+  // ---- Proposal variances ----
+  // The proposal variances for beta can be specified.
+  // If proposal adjustment is on, this is the initial proposal variance for 
+  // beta.
+  double betaPropSD = .3,
+         rProposalSD = 1.;
+  if (PROPOSAL_VARS.containsElementNamed("beta proposal sd"))
+    betaPropSD = as<double>(PROPOSAL_VARS["beta proposal sd"]);
+  
+  // For proposal adjustment
+  mat betaProposalSD(NUM_COEF, NUM_CAT, fill::value(betaPropSD));
+  Mat<short> betaAcceptCount(NUM_COEF, NUM_CAT, fill::zeros);
+  
+  // ---- Initialize parameters ----
+  // ordered by model hierarchy
+  mat c(NUM_OBS, NUM_CAT, fill::ones);
+  vec u(NUM_OBS);
+  Mat<short> eta(NUM_OBS, NUM_CAT, fill::zeros);
+  mat gamma(NUM_OBS, NUM_CAT);
+  mat beta(NUM_COEF, NUM_CAT);
+  vec phi(NUM_CAT);
+  vec kappa(NUM_CAT, fill::ones);
+  mat lambda(NUM_COEF - 1, NUM_CAT, fill::ones);
+  mat nu(NUM_COEF - 1, NUM_CAT, fill::ones);
+  rowvec tau(NUM_CAT, fill::ones);
+  rowvec xi(NUM_CAT, fill::ones);
+  
+  // The initial values for beta can be specified.
+  if (betaInitial.isNotNull()) {
+    beta = as<mat>(betaInitial);
+  } else {
+    fillRandSampleMat(beta, -.75, .75);
+  }
+  fillGammaVec(phi, phiShape, phiRate);
+  fillLambdaNu(lambda, nu); 
+  fillEta(eta, COUNTS, ID_END_IDX);
+  
+  gamma = arma::exp(X*beta); sampleC(c, COUNTS, u, gamma, eta);
+  
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////// Sampling ////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  int s = 0,
+      printFreq = std::ceil(ITER/20.);
+  for (int i = 0; i < ITER; i++) {
+    if (!ZI_GROUPED)
+      sampleEta(eta, c, gamma, COUNTS, etaAlpha, etaBeta);
+    else
+      sampleEtaGrouped(eta, c, gamma, COUNTS, ID_END_IDX, etaAlpha, etaBeta);
+    sampleC(c, COUNTS, u, gamma, eta);
+    sampleU(u, c, COUNTS);
+    sampleBeta(beta, X, c, kappa, tau, lambda, gamma, betaAcceptProp, 
+               betaProposalSD, betaAcceptCount, eta, firstBetaSD);
+    sampleKappa(kappa, beta, kappaShape, kappaRate);
+    sampleLambda(lambda, beta, nu, tau);
+    sampleNu(nu, lambda);
+    sampleTau(tau, beta, lambda, xi);
+    sampleXi(xi, tau);
+    
+    // Adjusting proposal variances
+    if (ADJ_PROPOSALS && (i + 1) % ADJ_FREQ == 0 && i < BURN_IN)
+      adjustProposalVars(betaProposalSD, betaAcceptCount, ADJ_FREQ,
+                         CAP_PROPOSALS, PROPOSAL_CAP);
+    
+    // Saving
+    if (i == BURN_IN - 1) {
+      betaAcceptProp.zeros();
+    }
+    if ((i >= BURN_IN || RETURN_BURN_IN) && i % NUM_THIN == 0) {
+      betaSamples.slice(s) = beta;
+      etaMeanPropZeros += arma::accu(eta == 0)/static_cast<double>(eta.n_elem);
+      if (saveEta) etaSamples.slice(s) = eta;
+      if (saveC || saveRA) cSamples.slice(s) = c;
+      if (saveU) uSamples.col(s) = u;
+      if (savePhi) phiSamples.col(s) = phi;
+      if (saveKappa) kappaSamples.col(s) = kappa;
+      if (saveLambda) lambdaSamples.slice(s) = lambda;
+      if (saveNu) nuSamples.slice(s) = nu;
+      if (saveTau) tauSamples.row(s) = tau;
+      if (saveXi) xiSamples.row(s) = xi;
+      s++;
+    }
+    
+    // Progress
+    if (PRINT_PROGRESS && (i + 1) % printFreq == 0)
+      printProgress(i+1, ITER);
+  }
+  
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////// Output //////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  betaAcceptProp /= (ITER - BURN_IN); etaMeanPropZeros /= numSamples; 
+
+  List output = List::create(Named("beta") = (cube) betaSamples,
+                             Named("betaAcceptProp") = betaAcceptProp,
+                             Named("rAcceptProp") = 0.0, // no r in this model
+                             Named("rMeans") = 0.0, // no r in this model
+                             Named("etaMeanPropZeros") = etaMeanPropZeros);
+  if (saveEta) output["eta"] = etaSamples;
+  if (saveC) output["c"] = cSamples;
+  if (saveRA) {
+    scaleCubeRows(cSamples);
+    output["RA"] = cSamples; // TODO : rename in R scripts prob to RA
+  }
+  if (saveU) output["u"] = uSamples;
+  if (saveKappa) output["kappa"] = kappaSamples;
+  if (savePhi) output["phi"] = phiSamples;
+  if (saveLambda) output["lambda"] = lambdaSamples;
+  if (saveNu) output["nu"] = nuSamples;
+  if (saveTau) output["tau"] = tauSamples;
+  if (saveXi) output["xi"] = xiSamples;
+                          
+  return output;
+}

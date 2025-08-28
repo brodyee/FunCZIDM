@@ -2,7 +2,8 @@
 % Please edit documentation in R/FunCZIDM.R
 \name{calcDeltaAlphaDiv}
 \alias{calcDeltaAlphaDiv}
-\title{Calculate The Multiplicative Change in \eqn{\alpha}-diversity Statistic}
+\title{Calculate The Multiplicative Change in \eqn{\alpha}-diversity
+Statistic}
 \usage{
 calcDeltaAlphaDiv(output, change, l = 0, covProfile = NULL, forCovs = NULL)
 }

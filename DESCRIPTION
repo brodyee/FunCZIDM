@@ -9,10 +9,14 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.3
 LazyData: true
-LinkingTo: Rcpp, RcppArmadillo, splines, abind
-Imports: Rcpp, RcppArmadillo, splines, abind
+LinkingTo: Rcpp, RcppArmadillo, splines, abind, MCMCpack
+Imports: Rcpp, RcppArmadillo, splines, abind, MCMCpack
 NeedsCompilation: yes
 Packaged: 2025-05-30 20:04:37 UTC; brodyee
 Author: Brody Erlandson [aut, cre]
 Maintainer: Brody Erlandson <erlandsonbrody@gmail.com>
 Depends: R (>= 3.5.0)
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

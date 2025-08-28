@@ -9,7 +9,6 @@ FunCZIDM(
   covariates,
   ids,
   varyingCov,
-  rCols = NULL,
   iter = 10000,
   burnIn = 5000,
   thin = 1,
@@ -23,7 +22,7 @@ FunCZIDM(
   rInitial = NULL,
   priors = NULL,
   proposalVars = NULL,
-  covWithVC = NULL,
+  covWithoutVC = NULL,
   df = 4,
   degree = 3,
   basisFunc = splines::bs,
@@ -43,13 +42,8 @@ should not include the intercept. These should correspond to the columns of
 \item{ids}{(integer vector) The index of subject ids in the 'covariates'.}
 
 \item{varyingCov}{(numeric vector) The index of the covariate the varying
-coefficients will be a function of in \code{covariates}. This is usually time.}
-
-\item{rCols}{(integer vector, default=NULL) Indices of \code{covariates} with
-subject- and category- specific effects. By default, it will only be the
-intercept. For this model, the intercept always has subject- and category-
-specific effects, and does not need to be specified. Check the \code{VarCoZIDM}
-function for a model without any subject- and category- specific effects.}
+coefficients will be a function of in \code{covariates}. This is usually
+time.}
 
 \item{iter}{(integer, default=10000) Total number of iterations.}
 
@@ -112,11 +106,15 @@ specifications. The hyperparameters that can be specified are:
 \item{"first beta sd"}: The prior sd for the first
 \eqn{\beta_{jpd}^*} coefficient (\eqn{\beta_{j00}^*}).
 \item{"a"}: The prior shape parameter for the variance of the \eqn{r_{jp}}.
-\item{"b"}: The prior scale parameter for the variance of the \eqn{r_{jp}}.
+\item{"b"}: The prior rate parameter for the variance of the \eqn{r_{jp}}.
 \item{"alpha"}: The prior fisrt shape parameter for the probability of the
 zero-inflation indicator.
 \item{"beta"}: The prior second shape parameter for the probability of the
 zero-inflation indicator.
+\item{"kappaShape"}: The prior shape parameter for the \eqn{\kappa_{jp}},
+i.e. the student-t portion of the regularized horseshoe.
+\item{"kappaRate"}: The prior rate parameter for the \eqn{\kappa_{jp}},
+i.e. the student-t portion of the regularized horseshoe.
 }
 NULL gives the default values, which are:
 \itemize{
@@ -135,8 +133,8 @@ sd are used, which are:
 \item{"r proposal sd"}: 1
 }}
 
-\item{covWithVC}{(vector, default=NULL) Indices of the \code{covariates}
-that will have varying coefficients. If NULL, all covariates will have
+\item{covWithoutVC}{(vector, default=NULL) Indices of the \code{covariates}
+that will not have varying coefficients. If NULL, all covariates will have
 varying coefficients. Intercept will always have varying coefficients.}
 
 \item{df}{(numeric, default=4) Degrees of freedom for the basis function.}

@@ -7,7 +7,8 @@
 combineOutputs(
   outputFiles,
   saveToFile = TRUE,
-  fileName = "combinedOutputs.rds"
+  fileName = "combinedOutputs.rds",
+  compress = "xz"
 )
 }
 \arguments{
@@ -18,10 +19,15 @@ saved outputs.}
 
 \item{fileName}{(character, default="combinedOutputs.rds") File name
 for output.}
+
+\item{compress}{(character, default="xz") If \code{saveToFile} is TRUE, the
+compression method for saving the output file. Options are "xz", "gzip", or
+"bzip2".}
 }
 \value{
 If \code{saveToFile} is TRUE, returns NULL after saving the combined
-output to file. If \code{saveToFile} is FALSE, returns the combined output list.
+output to file. If \code{saveToFile} is FALSE, returns the combined output
+list.
 }
 \description{
 Combines multiple FunCZIDM output files into a single output

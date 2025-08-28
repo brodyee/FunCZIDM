@@ -1,6 +1,8 @@
+# Author: Brody Erlandson
+#
 # This file contains the wrapper function for the FunC-ZIDM regression model
 # and the functions to extract the results from the model.
-# Author: Brody Erlandson
+
 
 #' @title FunCZIDM
 #' @description This function is used to sample from the FunC-ZIDM regression
@@ -11,12 +13,8 @@
 #' \code{counts}.
 #' @param ids (integer vector) The index of subject ids in the 'covariates'. 
 #' @param varyingCov (numeric vector) The index of the covariate the varying 
-#' coefficients will be a function of in \code{covariates}. This is usually time.
-#' @param rCols (integer vector, default=NULL) Indices of \code{covariates} with 
-#' subject- and category- specific effects. By default, it will only be the 
-#' intercept. For this model, the intercept always has subject- and category- 
-#' specific effects, and does not need to be specified. Check the \code{VarCoZIDM} 
-#' function for a model without any subject- and category- specific effects.
+#' coefficients will be a function of in \code{covariates}. This is usually 
+#' time.
 #' @param iter (integer, default=10000) Total number of iterations.
 #' @param burnIn (integer, default=5000) Number of burn-in iterations, must be
 #'  less than \code{iter}.
@@ -67,11 +65,15 @@
 #' \item{"first beta sd"}: The prior sd for the first 
 #' \eqn{\beta_{jpd}^*} coefficient (\eqn{\beta_{j00}^*}).
 #' \item{"a"}: The prior shape parameter for the variance of the \eqn{r_{jp}}.
-#' \item{"b"}: The prior scale parameter for the variance of the \eqn{r_{jp}}.
+#' \item{"b"}: The prior rate parameter for the variance of the \eqn{r_{jp}}.
 #' \item{"alpha"}: The prior fisrt shape parameter for the probability of the 
 #' zero-inflation indicator.
 #' \item{"beta"}: The prior second shape parameter for the probability of the
 #' zero-inflation indicator.
+#' \item{"kappaShape"}: The prior shape parameter for the \eqn{\kappa_{jp}}, 
+#' i.e. the student-t portion of the regularized horseshoe.
+#' \item{"kappaRate"}: The prior rate parameter for the \eqn{\kappa_{jp}}, 
+#' i.e. the student-t portion of the regularized horseshoe.
 #' }
 #' NULL gives the default values, which are:
 #' \itemize{
@@ -88,8 +90,8 @@
 #' \item{"beta proposal sd"}: .3 
 #' \item{"r proposal sd"}: 1
 #' }
-#' @param covWithVC (vector, default=NULL) Indices of the \code{covariates}
-#' that will have varying coefficients. If NULL, all covariates will have
+#' @param covWithoutVC (vector, default=NULL) Indices of the \code{covariates}
+#' that will not have varying coefficients. If NULL, all covariates will have
 #' varying coefficients. Intercept will always have varying coefficients.
 #' @param df (numeric, default=4) Degrees of freedom for the basis function.
 #' @param degree (numeric, default=3) Degree for the basis function.
@@ -107,11 +109,14 @@
 #' @return Depending on saveToFile, either returns NULL after saving or an 
 #' output list.
 #' @export 
-FunCZIDM <- function(counts, covariates, ids, varyingCov, rCols = NULL, iter = 10000, burnIn = 5000,
-                     thin = 1, adjustFreq = 250, proposalCap = 0, ZIGrouped = TRUE, returnBurnIn = FALSE,
-                     printProgress = TRUE, toReturn = NULL, betaInitial = NULL, rInitial = NULL,
-                     priors = NULL, proposalVars = NULL, covWithVC=NULL, df=4, degree=3, basisFunc=splines::bs,
-                     saveToFile = TRUE, fileName = "output.rds", saveNullInBetaCI = TRUE, 
+FunCZIDM <- function(counts, covariates, ids, varyingCov, 
+                     iter = 10000, burnIn = 5000, thin = 1, adjustFreq = 250, 
+                     proposalCap = 0, ZIGrouped = TRUE, returnBurnIn = FALSE,
+                     printProgress = TRUE, toReturn = NULL, betaInitial = NULL, 
+                     rInitial = NULL, priors = NULL, proposalVars = NULL, 
+                     covWithoutVC=NULL, df=4, degree=3, basisFunc=splines::bs,
+                     saveToFile = TRUE, fileName = "output.rds", 
+                     saveNullInBetaCI = TRUE, 
                      nullInBetaCIFileName = "nullInBetaCI.csv") {
   # error checks
   args <- as.list(environment())
@@ -155,11 +160,13 @@ FunCZIDM <- function(counts, covariates, ids, varyingCov, rCols = NULL, iter = 1
   n <- length(numObsPerID) # number of IDs
   orderedID <- rep(1:n, times=numObsPerID) # Makes IDs 1, 2, ..., n
   idEndIdx <- cumsum(numObsPerID) - 1 # -1 for 0 indexing
-  if (is.null(covWithVC)) {
-    covWithVC <- 1:ncol(X) # default to all columns
-  } else {
-    c(1, covWithVC + 1) # + 1 for intercept 
-  }
+
+  covWithVC <- 1:ncol(X)
+  # dropping those that in covWithoutVC
+  for (cov in covWithoutVC) {
+    toDrop <- which(grepl(colnames(infantCovariates)[cov], colnames(X)))
+    covWithVC <- covWithVC[-toDrop]
+  }     
   basisList <- getBasisX(X, varyingCov, covWithVC, df=df, degree=degree,
                          basisFunc=basisFunc) 
   Xvar <- basisList$Xvar # X with basis for varying coefficients
@@ -173,7 +180,7 @@ FunCZIDM <- function(counts, covariates, ids, varyingCov, rCols = NULL, iter = 1
   if (is.null(toReturn)) 
     toReturn <- character(0) # default to all columns
  
-  start <- Sys.time() # TODO : Update ability to have any re col and the ability to change 1 in horseshoe prior
+  start <- Sys.time()
   output <- FunCZIDMSampler(iter, counts, Xvar, idEndIdx, rCols,
                             BURN_IN = burnIn,
                             NUM_THIN = thin,
@@ -203,7 +210,7 @@ FunCZIDM <- function(counts, covariates, ids, varyingCov, rCols = NULL, iter = 1
   output[["catNames"]] <- colnames(counts)
   output[["centerScaleList"]] <- centerScaleList
   
-  if (saveNullInBetaCI) { # TODO : edit to just output and filename
+  if (saveNullInBetaCI) { 
     getNullInBetaCIProportion(output, XvartoXColMapping, colMapping, varyingCov,
                               colnames(counts), interiorKnots, 
                               boundaryKnots, basisFunc=basisFunc, df=df, 
@@ -211,30 +218,29 @@ FunCZIDM <- function(counts, covariates, ids, varyingCov, rCols = NULL, iter = 1
   }
     
   if (saveToFile) {
-    saveRDS(output, file = fileName)
+    saveRDS(output, file = fileName, compress="xz")
     return(NULL)
   }
 
   return(output)
 }
 
-# TODO : make sure each (vector) is type defined
 #' @title Get \eqn{\beta_{jp}(t)} Functions
 #' @description Extracts the \eqn{\beta_{jp}(t)} function samples from the 
 #' output of \code{FunCZIDM}
 #' @param output (list) Output list returned from \code{FunCZIDM}
-#' @param cov (integer, default=NULL) The index of \code{covariates} from \code{FunCZIDM} 
-#' for which \eqn{\beta_{jp}(t)} functions to extract. Intercept if NULL.
+#' @param cov (integer, default=NULL) The index of \code{covariates} from 
+#' \code{FunCZIDM} for which \eqn{\beta_{jp}(t)} functions to extract. 
+#' Intercept if NULL.
 #' @return A 3-dimensional array of \eqn{\beta_{jp}(t)} function samples for 
 #' the specified covariate.
 #' @export
 getBetaFunctions <- function(output, cov = NULL) {
   checkList(output, "output")
-  numCov <- length(output$colMapping) - 1 # - 1 for intercept
+  numCov <- length(output$colMapping)
   if (!is.null(cov)) {
     checkNonNegativeInteger(cov, "cov")
     checkLessThanOrEqualTo(cov, numCov, "cov")
-    cov <- cov + 1 # + 1 for intercept
   } else { # cov is NULL
     cov <- 1 # Default to intercept
   } 
@@ -248,14 +254,16 @@ getBetaFunctions <- function(output, cov = NULL) {
   basis <- cbind(1, basis) # Add intercept
   numDf <- output$df + 1 # + 1 for intercept
 
-  startTV <- match(cov, output$XvartoXColMapping) # First instance of the covariate
+  startTV <- match(cov, output$XvartoXColMapping) # First instance of the cov
   if (cov == output$XvartoXColMapping[startTV + 1]) {
     # If the next instance in the mapping is not the next covariate, then
     # the covariate does not have varying coefficients. So startTV == endTV.
-    endTV <- startTV + output$df - 1
-    betaVCFits <- getBetaVC(output$beta, c(startTV, endTV), output$basisFunc)
+    endTV <- startTV + numDf - 1
+    betaVCFits <- getBetaVC(output$beta, c(startTV, endTV), basis)
   } else {
     betaVCFits <- output$beta[startTV, , , drop=FALSE]
+    betaVCFits <- array(rep(betaVCFits, each = 100), 
+                        dim = c(100, dim(betaVCFits)[2], dim(betaVCFits)[3]))
   }
   colnames(betaVCFits) <- output$catNames # Set column names to categories
 
@@ -272,25 +280,26 @@ getBetaFunctions <- function(output, cov = NULL) {
 #' @export 
 calcRA <- function(output, covProfile=NULL) {
   checkList(output, "output")
-  numCov <- length(output$colMapping) - 1 # - 1 for intercept
+  numCov <- length(output$colMapping) 
   if (!is.null(covProfile)) {
     checkVector(covProfile, "covProfile", numericOnly=TRUE)
     checkLength(covProfile, numCov, "covProfile")
-    covProfile <- c(1, covProfile) # 1 for intercept
+    getCenterScaledCovProfile(covProfile, output$centerScaleList)
   } else { # covProfile is NULL
     covProfile <- c(1, rep(0, numCov)) # default to baseline profile
   }
 
   minVarCov <- min(output$varyingCov)
   maxVarCov <- max(output$varyingCov)
-  testPoints <- seq(minVarCov,  maxVarCov, length.out = 250)
+  testPoints <- seq(minVarCov, maxVarCov, length.out = 250)
   basis <- output$basisFunc(testPoints, df=output$df, intercept=FALSE,
                            knots=output$interiorKnots,
                            Boundary.knots=output$boundaryKnots)
   basis <- cbind(1, basis) # Add intercept
   numDf <- output$df + 1 # + 1 for intercept
 
-  return(getRAFits(output$beta, basis, covariates=covProfile))
+  return(getRAFits(output$beta, basis, covProfile, 
+                   output$XvartoXColMapping))
 }
 
 #' @title Calculate the Multipicative Change in Relateive Abundance
@@ -309,25 +318,27 @@ calcRA <- function(output, covProfile=NULL) {
 calcDeltaRA <- function(output, change, covProfile=NULL, forCovs=NULL, 
                         forCats=NULL) {
   checkList(output, "output")
-  numCov <- length(output$colMapping) - 1 # - 1 for intercept
+  numCov <- length(output$colMapping) 
   numCat <- length(output$catNames)
   if (!is.null(covProfile)) {
     checkVector(covProfile, "covProfile", numericOnly=TRUE)
     checkLength(covProfile, numCov, "covProfile")
-    covProfile <- c(1, covProfile) # 1 for intercept
+    getCenterScaledCovProfile(covProfile, output$centerScaleList)
   } else { # covProfile is NULL
     covProfile <- c(1, rep(0, numCov)) # default to baseline profile
   }
   if (!is.null(forCovs)) {
     checkValuesBetween(forCovs, 1, numCov)
-    forCovs <- forCovs + 1 # + 1 for intercept
   } else {
-    forCovs <- 1:numCov + 1 # Default to all covariates (except intercept)
+    forCovs <- 2:numCov # Default to all covariates (except intercept)
   }
   if (!is.null(forCats)) {
     checkValuesBetween(forCats, 1, numCat)
   } else {
     forCats <- 1:numCat # Default to all categories
+  }
+  for (cov in forCovs) {
+    getCenterScaledChange(change, output$centerScaleList, cov, covProfile)
   }
 
   minVarCov <- min(output$varyingCov)
@@ -341,15 +352,12 @@ calcDeltaRA <- function(output, change, covProfile=NULL, forCovs=NULL,
 
   # getting fit and sumExpFit for statistic calculations
   numCov <- length(output$colMapping) # Number of covariates
-  if (is.null(covProfile)) {
-    covProfile <- c(1, rep(0, numCov - 1)) # default to baseline profile
-  }
-  fit <- getFit(output$beta, basis, covProfile)
+  fit <- getFit(output$beta, basis, covProfile, output$XvartoXColMapping)
   sumExpFit <- getSumExpFit(fit)
 
   if (is.null(forCats)) { # Default to all categories
     toReturn <- list()
-    startTV <- match(2, output$XvartoXColMapping) # First instance of the first covariate
+    startTV <- match(2, output$XvartoXColMapping) # First instance of 1st cov
     numCat <- length(output$catNames) # number of categories
     i <- 1
     for (cov in forCovs) {
@@ -367,6 +375,8 @@ calcDeltaRA <- function(output, change, covProfile=NULL, forCovs=NULL,
       } else {
         endTV <- startTV
         betaVCFits <- output$beta[startTV, , , drop=FALSE]
+        betaVCFits <- array(rep(betaVCFits, each = 100), 
+                        dim = c(100, dim(betaVCFits)[2], dim(betaVCFits)[3]))
       }
 
       covariteName <- output$colMapping[[cov]]
@@ -378,7 +388,7 @@ calcDeltaRA <- function(output, change, covProfile=NULL, forCovs=NULL,
     }
   } else { # Only for specific categories
     toReturn <- list()
-    startTV <- match(2, output$XvartoXColMapping) # First instance of the first covariate
+    startTV <- match(2, output$XvartoXColMapping) # First instance of 1st cov
     numCat <- length(output$catNames) # number of categories
     i <- 1
     for (cov in forCovs) {
@@ -396,15 +406,17 @@ calcDeltaRA <- function(output, change, covProfile=NULL, forCovs=NULL,
       } else {
         endTV <- startTV
         betaVCFits <- output$beta[startTV, , , drop=FALSE]
+        betaVCFits <- array(rep(betaVCFits, each = 100), 
+                        dim = c(100, dim(betaVCFits)[2], dim(betaVCFits)[3]))
       }
-      covariteName <- output$colMapping[[cov]]
+      covariateName <- output$colMapping[[cov]]
 
       # combine the deltaRA for the specified categories as an array
-      abind::abind(lapply(forCats, function(cat)
+      dRA <- abind::abind(lapply(forCats, function(cat)
                                      getDeltaRA(cat, betaVCFits, fit, sumExpFit,
                                                 change=change[i])),
                   along=3)
-      toReturn[[covariateName]] <- aperm(out, c(1, 3, 2))
+      toReturn[[covariateName]] <- aperm(dRA, c(1, 3, 2))
       colnames(toReturn[[covariateName]]) <- output$catNames[forCats]
       i <- i + 1
       startTV <- endTV + 1 # Move to next covariate
@@ -427,15 +439,14 @@ calcDeltaRA <- function(output, change, covProfile=NULL, forCovs=NULL,
 #' @export 
 calcAlphaDiv <- function(output, l=0, covProfile=NULL) {
   checkList(output, "output")
-  numCov <- length(output$colMapping) - 1 # - 1 for intercept
+  numCov <- length(output$colMapping) 
   if (!is.null(covProfile)) {
     checkVector(covProfile, "covProfile", numericOnly=TRUE)
     checkLength(covProfile, numCov, "covProfile")
-    covProfile <- c(1, covProfile) # 1 for intercept
   } else { # covProfile is NULL
     covProfile <- c(1, rep(0, numCov)) # default to baseline profile
   }
-  if (l <= 0 | l > 1)
+  if (l < 0 | l > 1)
     stop(paste("l must be in [0, 1)."))
 
   minVarCov <- min(output$varyingCov)
@@ -447,10 +458,12 @@ calcAlphaDiv <- function(output, l=0, covProfile=NULL) {
   basis <- cbind(1, basis) # Add intercept
   numDf <- output$df + 1 # + 1 for intercept
 
-  return(getHillDiversity(output$beta, basis, covProfile, l=l))
+  return(getHillDiversity(output$beta, basis, covProfile, 
+                          output$XvartoXColMapping, l=l))
 }
 
-#' @title Calculate The Multiplicative Change in \eqn{\alpha}-diversity Statistic
+#' @title Calculate The Multiplicative Change in \eqn{\alpha}-diversity 
+#' Statistic
 #' @description Calculates the \eqn{\Delta_v\alpha_p(t)} statistic using the 
 #' Hill diversity index from the \code{FunCZIDM} samples.
 #' @param output (list) Output list from \code{FunCZIDM}
@@ -467,21 +480,19 @@ calcAlphaDiv <- function(output, l=0, covProfile=NULL) {
 calcDeltaAlphaDiv <- function(output, change, l = 0, covProfile=NULL, 
                               forCovs=NULL) {
   checkList(output, "output")
-  numCov <- length(output$colMapping) - 1 # - 1 for intercept
+  numCov <- length(output$colMapping)
   if (!is.null(covProfile)) {
     checkVector(covProfile, "covProfile", numericOnly=TRUE)
     checkLength(covProfile, numCov, "covProfile")
-    covProfile <- c(1, covProfile) # 1 for intercept
   } else { # covProfile is NULL
     covProfile <- c(1, rep(0, numCov)) # default to baseline profile
   }
   if (!is.null(forCovs)) {
     checkValuesBetween(forCovs, 1, numCov)
-    forCovs <- forCovs + 1 # + 1 for intercept
   } else {
-    forCovs <- 1:numCov + 1 # Default to all covariates (except intercept)
+    forCovs <- 2:numCov # Default to all covariates (except intercept)
   }
-  if (l <= 0 | l > 1)
+  if (l < 0 | l > 1)
     stop(paste("l must be in [0, 1)."))
 
   minVarCov <- min(output$varyingCov)
@@ -492,12 +503,9 @@ calcDeltaAlphaDiv <- function(output, change, l = 0, covProfile=NULL,
                             Boundary.knots=output$boundaryKnots)
   basis <- cbind(1, basis) # Add intercept
   numDf <- output$df + 1 # + 1 for intercept
-
-  if (is.null(covProfile)) {
-    covProfile <- c(1, rep(0, length(output$colMapping) - 1)) # default to baseline profile
-  }
   
-  fit <- getFit(output$beta, basis, covProfile)
+  fit <- getFit(output$beta, basis, covProfile, output$XvartoXColMapping)
+  sumExpFit <- getSumExpFit(fit)
   
   toReturn <- list()
   startTV <- match(2, output$XvartoXColMapping) # First instance of the first covariate
@@ -518,12 +526,15 @@ calcDeltaAlphaDiv <- function(output, change, l = 0, covProfile=NULL,
     } else {
       endTV <- startTV
       betaVCFits <- output$beta[startTV, , , drop=FALSE]
+      betaVCFits <- array(rep(betaVCFits, each = 100), 
+                        dim = c(100, dim(betaVCFits)[2], dim(betaVCFits)[3]))
     }
 
     toReturn[[output$colMapping[[cov]]]] <- getDeltaHillDiversity(betaVCFits, 
-                                                                  fit, l=l,
+                                                                  fit, 
+                                                                  sumExpFit,
+                                                                  l=l,
                                                                change=change[i])
-    colnames(toReturn[[output$colMapping[[cov]]]]) <- output$catNames
     i <- i + 1
     startTV <- endTV + 1 # Move to next covariate
   }
@@ -539,11 +550,16 @@ calcDeltaAlphaDiv <- function(output, change, l = 0, covProfile=NULL,
 #' @param saveToFile (logical, default=TRUE) Whether to save output to file.
 #' @param fileName (character, default="combinedOutputs.rds") File name
 #'  for output.
+#' @param compress (character, default="xz") If \code{saveToFile} is TRUE, the 
+#' compression method for saving the output file. Options are "xz", "gzip", or 
+#' "bzip2".
 #' @return If \code{saveToFile} is TRUE, returns NULL after saving the combined
-#' output to file. If \code{saveToFile} is FALSE, returns the combined output list.
+#' output to file. If \code{saveToFile} is FALSE, returns the combined output 
+#' list.
 #' @export 
 combineOutputs <- function(outputFiles, saveToFile = TRUE, 
-                           fileName = "combinedOutputs.rds") {
+                           fileName = "combinedOutputs.rds",
+                           compress = "xz") {
   combinedOutput <- list()
   numOutputs <- length(outputFiles)
   for (f in outputFiles) {
@@ -617,7 +633,7 @@ combineOutputs <- function(outputFiles, saveToFile = TRUE,
   }
 
   if (saveToFile) {
-    saveRDS(combinedOutput, file = fileName)
+    saveRDS(combinedOutput, file = fileName, compress = compress)
     return(NULL) # Return NULL if saved to file
   }
   return(combinedOutput)   
@@ -630,11 +646,13 @@ combineOutputs <- function(outputFiles, saveToFile = TRUE,
 #' @param p (integer) Number of functional covariates.
 #' @param totalCountRange (numeric vector, default=c(100, 200)) Range of total 
 #' counts.
+#' @param numActive (integer, default=4) Number of categories with active 
+#' covariates. Alway 1:numActive categories are active.
 #' @return A list containing the generated data: counts, covariates, ids, 
 #' timepoints and the true parameters.
 #' @export 
-generateData <- function(n, c, p, totalCountRange = c(100, 200)){
-  library(MCMCpack) # For rdirichlet function
+generateData <- function(n, c, p, totalCountRange = c(100, 200),
+                         numActive = 4) {
   ### Generate predictor matrices ###
   timePoints <- c()
   numObsPerID <- numeric(n)
@@ -665,12 +683,13 @@ generateData <- function(n, c, p, totalCountRange = c(100, 200)){
   # Generate time-varying coefficients and true response w/ intercept or r
   tvMat <- matrix(0, nTotal, c)
   funcMat <- matrix(runif(p*c, .5, 5.5), p, c)
-  funcMat[,5:c] <- 5
+  funcMat[,(numActive+1):c] <- 5
   for (cov in 2:(p+1)) {
     for (i in 1:c) {
       f <- funcList[[round(funcMat[cov-1,i])]]
       plusMinus <- funcMat[cov-1,i] - round(funcMat[cov-1,i])
-      tvMat[,i] <- tvMat[,i] + ifelse(plusMinus >= 0, 1, -1)*f(timePoints)*X[,cov]
+      tvMat[,i] <- tvMat[,i] + 
+                   ifelse(plusMinus >= 0, 1, -1)*f(timePoints)*X[,cov]
     }
   }
   
@@ -724,7 +743,7 @@ generateData <- function(n, c, p, totalCountRange = c(100, 200)){
   gamma <- gamma*oneZeroMultiplier
 
   # Generate RA values from a Dirichlet distribution
-  RA <- t(apply(gamma, 1, function(a) rdirichlet(1, a)))
+  RA <- t(apply(gamma, 1, function(a) MCMCpack::rdirichlet(1, a)))
 
   # Generate N (total counts) from a Uni
   N <- round(runif(nTotal, totalCountRange[1], totalCountRange[2]))
@@ -744,8 +763,8 @@ generateData <- function(n, c, p, totalCountRange = c(100, 200)){
 
   covariates <- data.frame(X[, -1]) # Remove intercept column
   colnames(covariates) <- colnames(X)[-1] # Set column names to covariates
-  return(list(counts = counts, ids = personID, covariates = covariates, timePoints = timePoints,
-              betaIntercepts = betaTrue, rTrue = rTrue, 
+  return(list(counts = counts, ids = personID, covariates = covariates,
+              timePoints = timePoints, betaIntercepts = betaTrue, rTrue = rTrue, 
               betaFuncMat = funcMat, trueZI = sum(gamma == 0)/length(gamma),
               trueRA=RA, funcList=funcList)) 
 }
