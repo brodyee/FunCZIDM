@@ -10,7 +10,7 @@
 module load miniforge
 conda activate func
 
-SCRIPT=$(Rscript -e "cat(system.file('scripts', 'chainsTraceplots.R', package = \
+SCRIPT=$(Rscript -e "cat(system.file('scripts', 'chainsTraceplots.R', package =\
                                      'FunCZIDM'))")
 Rscript "$SCRIPT"
 

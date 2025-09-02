@@ -91,7 +91,7 @@ cat("--------------------------- Parameters --------------------------------\n")
 cat("Number of unique observations: ", n, "\n", sep = "")
 cat("Number of categories: ", c, "\n", sep = "")
 cat("Number of fixed effects: ", p, "\n", sep = "")
-cat("Range of total counts: ", totalCount[1], ",", totalCount[2], "\n", sep = "")
+cat("Range of total counts: ", totalCount[1], ",", totalCount[2], "\n", sep="")
 cat("-------------------------- Running parameters -------------------------\n")
 
 ###############################################################################
@@ -277,7 +277,8 @@ interceptTrueRA <- exp(betaTrueFunc)/rowSums(exp(betaTrueFunc))
 numTVCov <- length(TVCols)
 startTV <- 1
 covariates <- c(1, rep(0, numTVCov - 1))
-fit <- FunCZIDM:::getFit(output$beta, basisTP, covariates, output$XvartoXColMapping)
+fit <- FunCZIDM:::getFit(output$beta, basisTP, covariates, 
+                         output$XvartoXColMapping)
 sumExpFit <- FunCZIDM:::getSumExpFit(fit)
 baselineRA <- FunCZIDM:::getRAFitsPrecalc(fit, sumExpFit)
 outputFile <- sprintf("%d/RAStats%d.csv", opt$seed, opt$seed)

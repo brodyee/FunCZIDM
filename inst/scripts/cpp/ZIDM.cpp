@@ -1,6 +1,5 @@
 /*
  Author: Brody Erlandson
- Last Modified: 05/22/2025 (dd/mm/yyyy)
  
  This program implements an MCMC sampler for a varying coefficient 
  zero-inflated Dirichlet-multinomial (FunC-ZIDM) regression model. 
@@ -209,7 +208,7 @@ List VarCoZIDMSampler(const int ITER, const arma::umat COUNTS,
   if (saveC) output["c"] = cSamples;
   if (saveRA) {
     scaleCubeRows(cSamples);
-    output["RA"] = cSamples; // TODO : rename in R scripts prob to RA
+    output["RA"] = cSamples; 
   }
   if (saveU) output["u"] = uSamples;
   if (saveKappa) output["kappa"] = kappaSamples;

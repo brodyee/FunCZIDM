@@ -1,6 +1,8 @@
+# Author: Brody Erlandson
+#
 # This file contains the helper functions for the wrapper functions in
 # FunCZIDM.R. 
-# Author: Brody Erlandson
+
 
 getBasisX <- function(X, varyingCov, covWithVC, df = 4, degree=3,
                       basisFunc=bs) {

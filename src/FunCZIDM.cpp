@@ -1,6 +1,5 @@
 /*
  Author: Brody Erlandson
- Last Modified: 05/22/2025 (dd/mm/yyyy)
  
  This program implements an MCMC sampler for a functional concurrent 
  zero-inflated Dirichlet-multinomial (FunC-ZIDM) regression model. 

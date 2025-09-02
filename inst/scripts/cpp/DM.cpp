@@ -1,9 +1,8 @@
 /*
  Author: Brody Erlandson
- Last Modified: 05/22/2025 (dd/mm/yyyy)
  
- This program implements an MCMC sampler for a functional concurrent 
- Dirichlet-multinomial (FunC-DM) regression model. 
+ This program implements an MCMC sampler for a Dirichlet-multinomial (DM) 
+ regression model. 
 */
 
 //[[Rcpp::plugins(cpp17)]]
@@ -188,7 +187,7 @@ List VarCoDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
   if (saveC) output["c"] = cSamples;
   if (saveRA) {
     scaleCubeRows(cSamples);
-    output["RA"] = cSamples; // TODO : rename in R scripts prob to RA
+    output["RA"] = cSamples;
   }
   if (saveU) output["u"] = uSamples;
   if (saveKappa) output["kappa"] = kappaSamples;

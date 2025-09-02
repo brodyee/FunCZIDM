@@ -1,6 +1,5 @@
 /*
  Author: Brody Erlandson
- Last Modified: 3/3/2025
  
  This is a helper file for the ZIDMwRE.cpp file. It contains the
  functions that are used within the sampler.

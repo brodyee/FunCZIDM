@@ -508,7 +508,8 @@ calcDeltaAlphaDiv <- function(output, change, l = 0, covProfile=NULL,
   sumExpFit <- getSumExpFit(fit)
   
   toReturn <- list()
-  startTV <- match(2, output$XvartoXColMapping) # First instance of the first covariate
+  startTV <- match(2, output$XvartoXColMapping) # First instance of the first 
+                                                # covariate
   numCat <- length(output$catNames) # number of categories
   i <- 1
   for (cov in forCovs) {

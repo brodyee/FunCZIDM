@@ -3,7 +3,8 @@
 #SBATCH --error=error_%a.err        # Error file
 #SBATCH --ntasks=1                  # Number of tasks per job (1 task per job)
 #SBATCH --cpus-per-task=1           # Number of CPUs per task
-#SBATCH --array=0-99%100            # Array job specification (100 tasks total, 100 running concurrently)
+#SBATCH --array=0-99%100            # Array job specification (100 tasks total,
+                                    # 100 running concurrently)
 
 module load miniforge
 conda activate func
