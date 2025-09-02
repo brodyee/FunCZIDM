@@ -11,17 +11,17 @@ The layout of this package is as follows:
 
 - `R` and `src` are folders that contain the source code.
 - `doc` contains the reference manual and knitted vignette.
-- `vignettes` contains the source .Rmd file.
-- `data` contains the infant covariates and count in an .rda object.
+- `vignettes` contains the source `.Rmd` file.
+- `data` contains the infant covariates and count in an `.rda` object.
 - `inst` contains four folders:
-  - `extdata` contains the samples obtained from the case study (after burnin), 
-     and the orginal infant microbiome data from 
+  - `extdata` contains the samples obtained from the case study (after burn-in), 
+     and the original infant microbiome data from 
      ![PNAS](https://www.pnas.org/doi/full/10.1073/pnas.1409497111#data-availability).
-  - `scripts` contains the .R and .cpp scripts to run the case study and 
+  - `scripts` contains the `.R` and `.cpp` scripts to run the case study and 
     simulations.
   - `slurm` contains the slurm scripts to run the simulations and case study on 
-    a HPC cluster.
-  - `notebooks` contains the .ipynb files to preprocess the data, and optain the
+    an HPC cluster.
+  - `notebooks` contains the .ipynb files to preprocess the data and obtain the
     simulation results.
 
 All other files/folders were made automatically and have minimal additions by 
@@ -30,28 +30,23 @@ us.
 ### Reproducing the Results
 
 We prioritize minimal steps to reproduce our results. We strongly recommend 
-reproducing the simulation results with a HPC cluster, as it is very 
-computationally intensive. The case study can be ran locally, though running it 
+reproducing the simulation results with an HPC cluster, as it is very 
+computationally intensive. The case study can be run locally, though running it 
 on a HPC cluster is preferred. 
 
-If you have access to a HPC cluster with SLURM, the steps to repoduce are as 
+If you have access to an HPC cluster with SLURM, the steps to reproduce are as 
 follows:
 
 1) Run `Rscript -e "cat(system.file('slurm', package = 'FunCZIDM'))"` to recover
    the path to the `slurm` folder, and copy all the scripts into the folder you 
    want your results.
-2) Fill in the user information for slurm in the `.sh` files:
-   # User info - These should be set before running the script
-   email=""
-   qos=""
-   partition=""
-   mailType="ALL"
+2) Fill in the user information for slurm in the `.sh` files: email="", ...
 3) Run the `.sh`, for example:
    `./simulations.sh`
 
 This will automatically run the slurm arrays for the simulation or case study.
 
-If you do not have access to a HPC cluster, one can following the steps in the 
+If you do not have access to an HPC cluster, one can follow the steps in the 
 vignette to run the sampler for the case study data. For multiple chains, one 
-can run multiple processes simultaneously, use screen in linux, or run the 
+can run multiple processes simultaneously, use screen in Linux, or run the 
 chains sequentially.
