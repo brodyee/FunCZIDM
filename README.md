@@ -5,7 +5,7 @@ Concurrent Zero-Inflated Dirichlet-Multinomial Regression Model with Application
 to Infant Microbiome" paper. The package also contains the code to reproduce the
 simulations and case study, along with a vignette that walks through how to use 
 the package. Lastly, there is an associated `shiny` app downloadable 
-![here](willBeHere).
+[here](willBeHere).
 
 The layout of this package is as follows:
 
@@ -16,7 +16,7 @@ The layout of this package is as follows:
 - `inst` contains four folders:
   - `extdata` contains the samples obtained from the case study (after burn-in), 
      and the original infant microbiome data from 
-     ![PNAS](https://www.pnas.org/doi/full/10.1073/pnas.1409497111#data-availability).
+     [PNAS](https://www.pnas.org/doi/full/10.1073/pnas.1409497111#data-availability).
   - `scripts` contains the `.R` and `.cpp` scripts to run the case study and 
     simulations.
   - `slurm` contains the slurm scripts to run the simulations and case study on 
@@ -54,9 +54,12 @@ simultaneously using the following `bash` script.
 set -euo pipefail
 
 # Get script paths
-CASE=$(Rscript -e "cat(system.file('scripts', 'caseStudy.R', package='FunCZIDM'))")
-TRACE=$(Rscript -e "cat(system.file('scripts', 'chainsTraceplots.R', package='FunCZIDM'))")
-COMBINE=$(Rscript -e "cat(system.file('scripts', 'combineOutputs.R', package='FunCZIDM'))")
+CASE=$(Rscript -e "cat(system.file('scripts', 'caseStudy.R',
+       package='FunCZIDM'))")
+TRACE=$(Rscript -e "cat(system.file('scripts', 'chainsTraceplots.R',
+        package='FunCZIDM'))")
+COMBINE=$(Rscript -e "cat(system.file('scripts', 'combineOutputs.R',
+          package='FunCZIDM'))")
 
 # Run four seeds in parallel
 Rscript "$CASE" --seed 18342 -i 85000 -b 75000 --toReturn RA \
@@ -68,7 +71,6 @@ Rscript "$CASE" --seed 87808 -i 85000 -b 75000 --toReturn RA \
 Rscript "$CASE" --seed 67235 -i 85000 -b 75000 --toReturn RA \
   --outputFolder "caseStudy" --thin 10 --df 4 --kappaShape 100 --kappaRate 900 &
 
-# Wait for all runs to finish
 wait
 
 # Post-process
