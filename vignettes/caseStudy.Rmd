@@ -36,7 +36,7 @@ data sets are aligned by checking the subject id's and times are aligned.
 
 ```{r}
 # Check count and covariate data are aligned
-(all(infantCounts$Subject == infantCovariates$Subject) ||
+(all(infantCounts$Subject == infantCovariates$Subject) &&
  all(infantCounts$Day.of.life.sample.obtained 
      == infantCovariates$Day.of.life.sample.obtained))
 ```
@@ -103,12 +103,7 @@ colnames(infantCounts)
 
 # Running the Model
 
-To run multiple chains,
-we used a `slurm` array within a high performance computing cluster to sample 
-in parallel. Both the `.R` and `.sh` scripts are provided in `inst/scripts` for 
-ease of reproducibility and implementation.
-
-Once the data is set up, you can sample from the FunC-ZIDM model using the 
+Once the data are set up, one can sample from the FunC-ZIDM model using the 
 `FunCZIDM` function. A full description of the arguments and options can be 
 found in the reference manual. 
 

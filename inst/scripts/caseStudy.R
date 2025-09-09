@@ -55,7 +55,7 @@ infantCovariates$Period.of.study <- relevel(infantCovariates$Period.of.study,
                                             ref="before")
 
 # Check count and covariate data are aligned
-if (!all(infantCounts$Subject == infantCovariates$Subject) ||
+if (!all(infantCounts$Subject == infantCovariates$Subject) &&
     !all(infantCounts$Day.of.life.sample.obtained 
          == infantCovariates$Day.of.life.sample.obtained)) {
   stop("The subject IDs and time points in the counts and covariates data do not

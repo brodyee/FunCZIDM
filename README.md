@@ -40,13 +40,43 @@ follows:
 1) Run `Rscript -e "cat(system.file('slurm', package = 'FunCZIDM'))"` to recover
    the path to the `slurm` folder, and copy all the scripts into the folder you 
    want your results.
-2) Fill in the user information for slurm in the `.sh` files: email="", ...
+2) Fill in the user information for `slurm` in the `.sh` files: email="", ...
 3) Run the `.sh`, for example:
    `./simulations.sh`
 
-This will automatically run the slurm arrays for the simulation or case study.
+This will automatically run the `slurm` arrays for the simulation or case study.
 
-If you do not have access to an HPC cluster, one can follow the steps in the 
-vignette to run the sampler for the case study data. For multiple chains, one 
-can run multiple processes simultaneously, use screen in Linux, or run the 
-chains sequentially.
+If the user does not have access to `slurm`, one can run multiple processes 
+simultaneously using the following `bash` script.  
+
+```
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Get script paths
+CASE=$(Rscript -e "cat(system.file('scripts', 'caseStudy.R', package='FunCZIDM'))")
+TRACE=$(Rscript -e "cat(system.file('scripts', 'chainsTraceplots.R', package='FunCZIDM'))")
+COMBINE=$(Rscript -e "cat(system.file('scripts', 'combineOutputs.R', package='FunCZIDM'))")
+
+# Run four seeds in parallel
+Rscript "$CASE" --seed 18342 -i 85000 -b 75000 --toReturn RA \
+  --outputFolder "caseStudy" --thin 10 --df 4 --kappaShape 100 --kappaRate 900 &
+Rscript "$CASE" --seed 33261 -i 85000 -b 75000 --toReturn RA \
+  --outputFolder "caseStudy" --thin 10 --df 4 --kappaShape 100 --kappaRate 900 &
+Rscript "$CASE" --seed 87808 -i 85000 -b 75000 --toReturn RA \
+  --outputFolder "caseStudy" --thin 10 --df 4 --kappaShape 100 --kappaRate 900 &
+Rscript "$CASE" --seed 67235 -i 85000 -b 75000 --toReturn RA \
+  --outputFolder "caseStudy" --thin 10 --df 4 --kappaShape 100 --kappaRate 900 &
+
+# Wait for all runs to finish
+wait
+
+# Post-process
+Rscript "$TRACE"
+Rscript "$COMBINE"
+```
+
+If using a windows machine, either using WSL or Git Bash will allow for this 
+script to run. There are other options for running multiple R processes 
+simultaneously, though they may result in differing results due to the random
+number generation.
