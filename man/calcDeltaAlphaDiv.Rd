@@ -2,15 +2,18 @@
 % Please edit documentation in R/FunCZIDM.R
 \name{calcDeltaAlphaDiv}
 \alias{calcDeltaAlphaDiv}
-\title{Calculate The Multiplicative Change in \eqn{\alpha}-diversity
+\title{Calculate the Multiplicative Change in \eqn{\alpha}-diversity
 Statistic}
 \usage{
-calcDeltaAlphaDiv(output, change, l = 0, covProfile = NULL, forCovs = NULL)
+calcDeltaAlphaDiv(output, change, forCovs, l = 0, covProfile = NULL)
 }
 \arguments{
 \item{output}{(list) Output list from \code{FunCZIDM}}
 
-\item{change}{(numeric) The amount change of the covariate.}
+\item{change}{(numeric vector) The amount change of the covariate.}
+
+\item{forCovs}{(numeric vector) Indices of \code{covariates}
+for which \eqn{\Delta_v\alpha_p(t)} to be calculated.}
 
 \item{l}{(numeric, default=0) Parameter l the diversity weight parameter.
 If 0, the Shannon diversity index is calculated, if 1, the count diversity
@@ -18,12 +21,9 @@ index is calculated. Closer to 1 gives more weight to rare categories.}
 
 \item{covProfile}{(numeric vector, default=NULL) Covariate profile. If NULL,
 the baseline profile is used (ie all zeros).}
-
-\item{forCovs}{(numeric vector, default=NULL) Indices of \code{covariates}
-for which \eqn{\Delta_v\alpha_p(t)} to be calculated.}
 }
 \value{
-A list of 3-dimensional arrays of \eqn{\Delta_v\alpha_p(t)} samples
+A list of matrix of \eqn{\Delta_v\alpha_p(t)} samples
 }
 \description{
 Calculates the \eqn{\Delta_v\alpha_p(t)} statistic using the

@@ -117,7 +117,7 @@ void fillEta(Mat<short>& eta, const umat& COUNTS, const uvec ID_END_IDX) {
 
 void adjustProposalVars(mat& betaProposalSD, Mat<short>& betaAcceptCount,
                         const double freq, const bool capVar = false,
-                        const double cap = .75) {
+                        const double cap = 0.0) {
   const int NUM_COEF = betaProposalSD.n_rows,
             NUM_CAT = betaProposalSD.n_cols;
   
@@ -135,7 +135,7 @@ void adjustProposalVars(mat& betaProposalSD, Mat<short>& betaAcceptCount,
       } else {
         betaProposalSD.at(coef, cat) *= acceptProp/.25;
         betaAcceptCount.at(coef, cat) = 0;
-        if (capVar && betaProposalSD.at(coef, cat) > cap)
+        if (capVar && betaProposalSD.at(coef, cat) > cap) 
           betaProposalSD.at(coef, cat) = cap;
       }
     }
@@ -659,6 +659,38 @@ arma::cube getFitOfData(const arma::cube& beta, const arma::mat& Xtv) {
 }
 
 //[[Rcpp::export]]
+arma::cube getFitOfData2(const arma::cube& beta, const arma::mat& basis,
+                        const arma::mat& covariates, const arma::vec& covIdxs) {
+  const int NUM_PARAM = beta.n_rows,
+            NUM_CAT = beta.n_cols,
+            NUM_SAMPLE = beta.n_slices,
+            NUM_TESTPOINTS = basis.n_rows,
+            NUM_DF = basis.n_cols;
+  mat Xtv(NUM_TESTPOINTS, NUM_PARAM),
+      ones(NUM_TESTPOINTS, 1, arma::fill::ones);
+  cube fit(NUM_TESTPOINTS, NUM_CAT, NUM_SAMPLE);
+
+  int startIdx = 0;
+  int endIdx = NUM_DF - 1; // intercept is always varying, so this is endIdx
+  for (int cov = 0; cov < covariates.n_cols; cov++) {
+    if (covIdxs[startIdx] != covIdxs[endIdx]) {
+      endIdx = startIdx; // cov not varying, so endIdx is startIdx
+      Xtv.cols(startIdx, endIdx) = ones%covariates.col(cov);
+    } else {
+      Xtv.cols(startIdx, endIdx) = basis.each_col()%covariates.col(cov);
+    } 
+    startIdx = endIdx + 1;
+    endIdx += NUM_DF;
+  }
+
+  for (int s = 0; s < NUM_SAMPLE; s++) {
+    fit.slice(s) = Xtv*beta.slice(s);
+  }
+
+  return fit;
+}
+
+//[[Rcpp::export]]
 arma::cube getRAFits(const arma::cube& beta, const arma::mat& basis,
                      const arma::vec& covariates, const arma::vec& covIdxs) {
   /*
@@ -697,8 +729,7 @@ arma::cube getRAFits(const arma::cube& beta, const arma::mat& basis,
 
 //[[Rcpp::export]]
 arma::cube getRAFitsPrecalc(const arma::cube& fit, const arma::mat& sumExpFit) {
-  const int NUM_CAT = fit.n_cols,
-            NUM_SAMPLE = fit.n_slices;
+  const int NUM_SAMPLE = fit.n_slices;
 
   cube toReturn = arma::exp(fit);
 

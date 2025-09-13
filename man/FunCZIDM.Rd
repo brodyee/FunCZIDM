@@ -13,7 +13,6 @@ FunCZIDM(
   burnIn = 5000,
   thin = 1,
   adjustFreq = 250,
-  proposalCap = 0,
   ZIGrouped = TRUE,
   returnBurnIn = FALSE,
   printProgress = TRUE,
@@ -54,9 +53,6 @@ less than \code{iter}.}
 
 \item{adjustFreq}{(numeric, default=250) Frequency at which
 \eqn{\beta_{jpd}^*} proposals are adjusted.}
-
-\item{proposalCap}{(numeric, default=0) Cap for proposal variances, if 0
-there will be no cap.}
 
 \item{ZIGrouped}{(logical, default=TRUE) Whether to use the zero inflation
 indicator for all samples of an id (TRUE), or each sample have their own
@@ -123,13 +119,15 @@ NULL gives the default values, which are:
 \item{"b"}: 9
 \item{"alpha"}: .01
 \item{"beta"}: 10
+\item{"kappaShape"}: 100
+\item{"kappaRate"}: 900
 }}
 
 \item{proposalVars}{(list, default=NULL) List with proposal
 sd for \eqn{\beta_{jpd}^*} and \eqn{r_{jp}}. If NULL, the default proposal
 sd are used, which are:
 \itemize{
-\item{"beta proposal sd"}: .3
+\item{"beta proposal sd"}: .1
 \item{"r proposal sd"}: 1
 }}
 
@@ -159,7 +157,29 @@ File name for null CI statistics.}
 }
 \value{
 Depending on saveToFile, either returns NULL after saving or an
-output list.
+output list. The output list contains:
+\itemize{
+\item{"beta"}: The \eqn{\beta_{jpd}^*} samples.
+\item{"betaAcceptProp"}: The acceptance proportion for the
+\eqn{\beta_{jpd}^*} proposals after burn-in.
+\item{"rAcceptProp"}: The acceptance proportion for the \eqn{r_{jp}}
+proposals after burn-in.
+\item{"rMeans"}: The mean of the \eqn{r_{jp}} samples.
+\item{"etaMeanPropZeros"}: The average level of zero-inflation indicated.
+\item{"interiorKnots"}: The interior knots of the basis functions.
+\item{"boundaryKnots"}: The boundary knots of the basis functions.
+\item{"df"}: The degrees of freedom used for the basis functions.
+\item{"basisFunc"}: The basis function used.
+\item{"varyingCov"}: The values of the covariate that the varying
+coefficients are a function of.
+\item{"colMapping"}: A list mapping the covariate indices to the column names
+of the design matrix.
+\item{"XvartoXColMapping"}: A vector mapping the columns of the design matrix
+with the basis design matrix.
+\item{"catNames"}: The category names from the counts.
+\item{"centerScaleList"}: A list containing the center and scale of each
+continuous covariate. If a covariate is a factor, then "no c/s" is stored.
+}
 }
 \description{
 This function is used to sample from the FunC-ZIDM regression

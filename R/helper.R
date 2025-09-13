@@ -59,8 +59,8 @@ getNullInBetaCIProportion <- function(output, XvartoXColMapping, colMapping,
 
   # get the basis functions for the test points
   basis <- basisFunc(testPoints, df=df, intercept=FALSE,
-                   knots=interiorKnots,
-                   Boundary.knots=boundaryKnots)
+                     knots=interiorKnots,
+                     Boundary.knots=boundaryKnots)
   basis <- cbind(1, basis)
   numDf <- df + 1
   
@@ -82,6 +82,8 @@ getNullInBetaCIProportion <- function(output, XvartoXColMapping, colMapping,
     } else {
       endTV <- startTV
       betaVCFits <- output$beta[startTV, , , drop=FALSE]
+      betaVCFits <- array(rep(betaVCFits, each = 250), 
+                          dim = c(250, dim(betaVCFits)[2], dim(betaVCFits)[3]))
     }
 
     # the 2.5th and 97.5th percentiles of the beta functions
@@ -102,7 +104,7 @@ getNullInBetaCIProportion <- function(output, XvartoXColMapping, colMapping,
 }
 
 errorChecksFunCZIDM <- function(counts, covariates, ids, varyingCov, 
-                                iter, burnIn, thin, adjustFreq, proposalCap,
+                                iter, burnIn, thin, adjustFreq,
                                 ZIGrouped, returnBurnIn, printProgress, 
                                 toReturn, betaInitial, rInitial, priors, 
                                 proposalVars, covWithoutVC, df, degree, basisFunc, 
@@ -120,7 +122,7 @@ errorChecksFunCZIDM <- function(counts, covariates, ids, varyingCov,
     checkNonNegativeInteger(get(name), name)
   }
 
-  singleNumeric <- c("iter", "burnIn", "thin", "adjustFreq", "proposalCap")
+  singleNumeric <- c("iter", "burnIn", "thin", "adjustFreq")
   for (name in singleNumeric) {
     checkSingleNumeric(get(name), name)
   }
@@ -159,7 +161,6 @@ errorChecksFunCZIDM <- function(counts, covariates, ids, varyingCov,
   checkDataFrame(covariates, "covariates")
   checkDataFrameTypes(covariates, "covariates")
   checkSameNumRows(counts, covariates, "counts", "covariates")
-  checkNonNegative(proposalCap, "proposalCap")
   if (!is.null(toReturn)) {
     checkVectorStrings(toReturn, c("eta", "c", "u", "r", "phi", "lambda", "nu", 
                                    "tau", "xi", "RA"),
@@ -301,7 +302,7 @@ checkValuesBetween <- function(x, min, max, name) {
   if (!is.numeric(x)) {
     stop(paste(name, "must be numeric."))
   }
-  if (any(x <= min | x >= max)) {
+  if (any(x < min | x > max)) {
     stop(paste(name, "must be between", min, "and", max, "."))
   }
 }

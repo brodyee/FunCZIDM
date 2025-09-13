@@ -77,6 +77,20 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// getFitOfData2
+arma::cube getFitOfData2(const arma::cube& beta, const arma::mat& basis, const arma::mat& covariates, const arma::vec& covIdxs);
+RcppExport SEXP _FunCZIDM_getFitOfData2(SEXP betaSEXP, SEXP basisSEXP, SEXP covariatesSEXP, SEXP covIdxsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::cube& >::type beta(betaSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type basis(basisSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type covariates(covariatesSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type covIdxs(covIdxsSEXP);
+    rcpp_result_gen = Rcpp::wrap(getFitOfData2(beta, basis, covariates, covIdxs));
+    return rcpp_result_gen;
+END_RCPP
+}
 // getRAFits
 arma::cube getRAFits(const arma::cube& beta, const arma::mat& basis, const arma::vec& covariates, const arma::vec& covIdxs);
 RcppExport SEXP _FunCZIDM_getRAFits(SEXP betaSEXP, SEXP basisSEXP, SEXP covariatesSEXP, SEXP covIdxsSEXP) {
@@ -281,6 +295,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_FunCZIDM_getFit", (DL_FUNC) &_FunCZIDM_getFit, 4},
     {"_FunCZIDM_getSumExpFit", (DL_FUNC) &_FunCZIDM_getSumExpFit, 1},
     {"_FunCZIDM_getFitOfData", (DL_FUNC) &_FunCZIDM_getFitOfData, 2},
+    {"_FunCZIDM_getFitOfData2", (DL_FUNC) &_FunCZIDM_getFitOfData2, 4},
     {"_FunCZIDM_getRAFits", (DL_FUNC) &_FunCZIDM_getRAFits, 4},
     {"_FunCZIDM_getRAFitsPrecalc", (DL_FUNC) &_FunCZIDM_getRAFitsPrecalc, 2},
     {"_FunCZIDM_getBetaVC", (DL_FUNC) &_FunCZIDM_getBetaVC, 3},

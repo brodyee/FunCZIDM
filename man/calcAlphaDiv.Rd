@@ -17,7 +17,7 @@ index is calculated. Closer to 1 gives more weight to rare categories.}
 the baseline profile is used (ie all zeros).}
 }
 \value{
-A 3-dimensional array of \eqn{\alpha_p(t)} samples
+A matrix of \eqn{\alpha_p(t)} samples
 }
 \description{
 Calculates the \eqn{\alpha_p(t)} statistic using the

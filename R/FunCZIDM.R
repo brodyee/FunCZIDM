@@ -21,8 +21,6 @@
 #' @param thin (integer, default=1) Number of iterations to thin by.
 #' @param adjustFreq (numeric, default=250) Frequency at which 
 #' \eqn{\beta_{jpd}^*} proposals are adjusted.
-#' @param proposalCap (numeric, default=0) Cap for proposal variances, if 0 
-#' there will be no cap.
 #' @param ZIGrouped (logical, default=TRUE) Whether to use the zero inflation 
 #' indicator for all samples of an id (TRUE), or each sample have their own 
 #' indicator (FALSE).
@@ -82,12 +80,14 @@
 #' \item{"b"}: 9
 #' \item{"alpha"}: .01
 #' \item{"beta"}: 10
+#' \item{"kappaShape"}: 100
+#' \item{"kappaRate"}: 900
 #' }
 #' @param proposalVars (list, default=NULL) List with proposal 
 #' sd for \eqn{\beta_{jpd}^*} and \eqn{r_{jp}}. If NULL, the default proposal 
 #' sd are used, which are:
 #' \itemize{
-#' \item{"beta proposal sd"}: .3 
+#' \item{"beta proposal sd"}: .1
 #' \item{"r proposal sd"}: 1
 #' }
 #' @param covWithoutVC (vector, default=NULL) Indices of the \code{covariates}
@@ -107,11 +107,33 @@
 #' @param nullInBetaCIFileName (character, default="nullInBetaCI.csv") 
 #' File name for null CI statistics.
 #' @return Depending on saveToFile, either returns NULL after saving or an 
-#' output list.
+#' output list. The output list contains:
+#' \itemize{
+#' \item{"beta"}: The \eqn{\beta_{jpd}^*} samples.
+#' \item{"betaAcceptProp"}: The acceptance proportion for the 
+#' \eqn{\beta_{jpd}^*} proposals after burn-in.
+#' \item{"rAcceptProp"}: The acceptance proportion for the \eqn{r_{jp}} 
+#' proposals after burn-in.
+#' \item{"rMeans"}: The mean of the \eqn{r_{jp}} samples.
+#' \item{"etaMeanPropZeros"}: The average level of zero-inflation indicated.
+#' \item{"interiorKnots"}: The interior knots of the basis functions.
+#' \item{"boundaryKnots"}: The boundary knots of the basis functions.
+#' \item{"df"}: The degrees of freedom used for the basis functions.
+#' \item{"basisFunc"}: The basis function used.
+#' \item{"varyingCov"}: The values of the covariate that the varying 
+#' coefficients are a function of.
+#' \item{"colMapping"}: A list mapping the covariate indices to the column names
+#' of the design matrix.
+#' \item{"XvartoXColMapping"}: A vector mapping the columns of the design matrix
+#' with the basis design matrix.
+#' \item{"catNames"}: The category names from the counts.
+#' \item{"centerScaleList"}: A list containing the center and scale of each 
+#' continuous covariate. If a covariate is a factor, then "no c/s" is stored.
+#' }
 #' @export 
 FunCZIDM <- function(counts, covariates, ids, varyingCov, 
-                     iter = 10000, burnIn = 5000, thin = 1, adjustFreq = 250, 
-                     proposalCap = 0, ZIGrouped = TRUE, returnBurnIn = FALSE,
+                     iter = 10000, burnIn = 5000, thin = 1, adjustFreq = 250,
+                     ZIGrouped = TRUE, returnBurnIn = FALSE, 
                      printProgress = TRUE, toReturn = NULL, betaInitial = NULL, 
                      rInitial = NULL, priors = NULL, proposalVars = NULL, 
                      covWithoutVC=NULL, df=4, degree=3, basisFunc=splines::bs,
@@ -123,7 +145,6 @@ FunCZIDM <- function(counts, covariates, ids, varyingCov,
   do.call(errorChecksFunCZIDM, args) 
 
   adjustProp <- adjustFreq != 0 # If adjustFreq is 0, no adjustment of proposals
-  capProposals <- proposalCap > 0 # If proposalCap is 0, no capping of proposals
 
   # processing the data
   centerScaleList <- list() # List to store the center and scale of each cov
@@ -132,7 +153,7 @@ FunCZIDM <- function(counts, covariates, ids, varyingCov,
   for (i in 1:ncol(covariates)) {
     if (is.numeric(covariates[, i])) {
       centerScaleList[[listIdx]] <- list(center = mean(covariates[, i]),
-                                       scale = sd(covariates[, i]))
+                                         scale = sd(covariates[, i]))
       covariates[, i] <- (covariates[, i] - centerScaleList[[listIdx]]$center) / 
                           centerScaleList[[listIdx]]$scale
     } else {
@@ -185,11 +206,11 @@ FunCZIDM <- function(counts, covariates, ids, varyingCov,
                             BURN_IN = burnIn,
                             NUM_THIN = thin,
                             ADJ_FREQ = adjustFreq,
-                            PROPOSAL_CAP = proposalCap,
+                            PROPOSAL_CAP = 0, # no capping the proposals
                             ZI_GROUPED = ZIGrouped,
                             ADJ_PROPOSALS = adjustProp,
                             RETURN_BURN_IN = returnBurnIn,
-                            CAP_PROPOSALS = capProposals,
+                            CAP_PROPOSALS = FALSE, # no capping the proposals
                             PRINT_PROGRESS = printProgress,
                             TO_RETRUN = toReturn,
                             betaInitial = betaInitial,
@@ -266,6 +287,7 @@ getBetaFunctions <- function(output, cov = NULL) {
                         dim = c(100, dim(betaVCFits)[2], dim(betaVCFits)[3]))
   }
   colnames(betaVCFits) <- output$catNames # Set column names to categories
+  rownames(betaVCFits) <- testPoints 
 
   return(betaVCFits)
 }
@@ -284,9 +306,9 @@ calcRA <- function(output, covProfile=NULL) {
   if (!is.null(covProfile)) {
     checkVector(covProfile, "covProfile", numericOnly=TRUE)
     checkLength(covProfile, numCov, "covProfile")
-    getCenterScaledCovProfile(covProfile, output$centerScaleList)
+    covProfile <- getCenterScaledCovProfile(covProfile, output$centerScaleList)
   } else { # covProfile is NULL
-    covProfile <- c(1, rep(0, numCov)) # default to baseline profile
+    covProfile <- c(1, rep(0, numCov - 1)) # default to baseline profile
   }
 
   minVarCov <- min(output$varyingCov)
@@ -298,24 +320,27 @@ calcRA <- function(output, covProfile=NULL) {
   basis <- cbind(1, basis) # Add intercept
   numDf <- output$df + 1 # + 1 for intercept
 
-  return(getRAFits(output$beta, basis, covProfile, 
-                   output$XvartoXColMapping))
+  ret <- getRAFits(output$beta, basis, covProfile, 
+                   output$XvartoXColMapping)
+  dimnames(ret) <- list(testPoints, output$catNames, NULL)
+  return(ret)
 }
 
 #' @title Calculate the Multipicative Change in Relateive Abundance
 #' @description This function calculates the \eqn{\Delta_vRA_{jp}(t)} statistic
 #' from the samples of \code{FunCZIDM}. 
 #' @param output (list) Output list from \code{FunCZIDM}
-#' @param change (numeric) The change of the covariate.
+#' @param change (numeric vector) The change of the covariate.
+#' @param forCovs (integer vector) Indices of \code{covariates}
+#' for which \eqn{\Delta_vRA_{jp}(t)} to be calculated.
 #' @param covProfile (numeric vector, default=NULL) Covariate profile.
 #' If NULL, the baseline profile is used (ie all zeros).
-#' @param forCovs (integer vector, default=NULL) Indices of \code{covariates}
-#' for which \eqn{\Delta_vRA_{jp}(t)} to be calculated.
 #' @param forCats (integer vector, default=NULL) Indices of categories  
-#' for which \eqn{\Delta_vRA_{jp}(t)} is calculated.
+#' for which \eqn{\Delta_vRA_{jp}(t)} is calculated. If NULL, then all 
+#' categories are used.
 #' @return A list of 3-dimensional array \eqn{\Delta_vRA_{jp}(t)} samples
 #' @export 
-calcDeltaRA <- function(output, change, covProfile=NULL, forCovs=NULL, 
+calcDeltaRA <- function(output, change, forCovs, covProfile=NULL, 
                         forCats=NULL) {
   checkList(output, "output")
   numCov <- length(output$colMapping) 
@@ -323,22 +348,22 @@ calcDeltaRA <- function(output, change, covProfile=NULL, forCovs=NULL,
   if (!is.null(covProfile)) {
     checkVector(covProfile, "covProfile", numericOnly=TRUE)
     checkLength(covProfile, numCov, "covProfile")
-    getCenterScaledCovProfile(covProfile, output$centerScaleList)
+    covProfile <- getCenterScaledCovProfile(covProfile, output$centerScaleList)
   } else { # covProfile is NULL
-    covProfile <- c(1, rep(0, numCov)) # default to baseline profile
+    covProfile <- c(1, rep(0, numCov - 1)) # default to baseline profile
   }
-  if (!is.null(forCovs)) {
-    checkValuesBetween(forCovs, 1, numCov)
-  } else {
-    forCovs <- 2:numCov # Default to all covariates (except intercept)
-  }
+  
+  checkValuesBetween(forCovs, 1, numCov)
   if (!is.null(forCats)) {
     checkValuesBetween(forCats, 1, numCat)
   } else {
     forCats <- 1:numCat # Default to all categories
   }
+  i = 1
   for (cov in forCovs) {
-    getCenterScaledChange(change, output$centerScaleList, cov, covProfile)
+    change[i] <- getCenterScaledChange(change[i], output$centerScaleList, cov,
+                                       covProfile)
+    i <- i + 1
   }
 
   minVarCov <- min(output$varyingCov)
@@ -382,7 +407,8 @@ calcDeltaRA <- function(output, change, covProfile=NULL, forCovs=NULL,
       covariteName <- output$colMapping[[cov]]
       toReturn[[covariteName]] <- getAllCatDeltaRA(betaVCFits, fit, sumExpFit,
                                                    change=change[i])
-      colnames(toReturn[[covariteName]]) <- output$catNames
+      dimnames(toReturn[[covariteName]]) <- list(testPoints, output$catNames,
+                                                 NULL)
       i <- i + 1
       startTV <- endTV + 1 # Move to next covariate
     }
@@ -406,18 +432,20 @@ calcDeltaRA <- function(output, change, covProfile=NULL, forCovs=NULL,
       } else {
         endTV <- startTV
         betaVCFits <- output$beta[startTV, , , drop=FALSE]
-        betaVCFits <- array(rep(betaVCFits, each = 100), 
-                        dim = c(100, dim(betaVCFits)[2], dim(betaVCFits)[3]))
+        betaVCFits <- array(rep(betaVCFits, each = 250), 
+                           dim = c(250, dim(betaVCFits)[2], dim(betaVCFits)[3]))
       }
       covariateName <- output$colMapping[[cov]]
 
       # combine the deltaRA for the specified categories as an array
       dRA <- abind::abind(lapply(forCats, function(cat)
-                                     getDeltaRA(cat, betaVCFits, fit, sumExpFit,
-                                                change=change[i])),
-                  along=3)
+                                     getDeltaRA(cat - 1, betaVCFits, fit,
+                                                sumExpFit, change=change[i])),
+                          along=3)
       toReturn[[covariateName]] <- aperm(dRA, c(1, 3, 2))
-      colnames(toReturn[[covariateName]]) <- output$catNames[forCats]
+      dimnames(toReturn[[covariateName]]) <- list(testPoints, 
+                                                  output$catNames[forCats], 
+                                                  NULL)
       i <- i + 1
       startTV <- endTV + 1 # Move to next covariate
     }
@@ -435,7 +463,7 @@ calcDeltaRA <- function(output, change, covProfile=NULL, forCovs=NULL,
 #' index is calculated. Closer to 1 gives more weight to rare categories. 
 #' @param covProfile (numeric vector, default=NULL) Covariate profile. If NULL, 
 #' the baseline profile is used (ie all zeros).
-#' @return A 3-dimensional array of \eqn{\alpha_p(t)} samples
+#' @return A matrix of \eqn{\alpha_p(t)} samples
 #' @export 
 calcAlphaDiv <- function(output, l=0, covProfile=NULL) {
   checkList(output, "output")
@@ -458,39 +486,43 @@ calcAlphaDiv <- function(output, l=0, covProfile=NULL) {
   basis <- cbind(1, basis) # Add intercept
   numDf <- output$df + 1 # + 1 for intercept
 
-  return(getHillDiversity(output$beta, basis, covProfile, 
-                          output$XvartoXColMapping, l=l))
+  ret <- getHillDiversity(output$beta, basis, covProfile, 
+                          output$XvartoXColMapping, l=l)
+  rownames(ret) <- testPoints
+  return(ret)
 }
 
-#' @title Calculate The Multiplicative Change in \eqn{\alpha}-diversity 
+#' @title Calculate the Multiplicative Change in \eqn{\alpha}-diversity 
 #' Statistic
 #' @description Calculates the \eqn{\Delta_v\alpha_p(t)} statistic using the 
 #' Hill diversity index from the \code{FunCZIDM} samples.
 #' @param output (list) Output list from \code{FunCZIDM}
-#' @param change (numeric) The amount change of the covariate.
+#' @param change (numeric vector) The amount change of the covariate.
+#' @param forCovs (numeric vector) Indices of \code{covariates}
+#' for which \eqn{\Delta_v\alpha_p(t)} to be calculated.
 #' @param l (numeric, default=0) Parameter l the diversity weight parameter. 
 #' If 0, the Shannon diversity index is calculated, if 1, the count diversity 
 #' index is calculated. Closer to 1 gives more weight to rare categories. 
 #' @param covProfile (numeric vector, default=NULL) Covariate profile. If NULL, 
 #' the baseline profile is used (ie all zeros).
-#' @param forCovs (numeric vector, default=NULL) Indices of \code{covariates}
-#' for which \eqn{\Delta_v\alpha_p(t)} to be calculated.
-#' @return A list of 3-dimensional arrays of \eqn{\Delta_v\alpha_p(t)} samples
+#' @return A list of matrix of \eqn{\Delta_v\alpha_p(t)} samples
 #' @export 
-calcDeltaAlphaDiv <- function(output, change, l = 0, covProfile=NULL, 
-                              forCovs=NULL) {
+calcDeltaAlphaDiv <- function(output, change, forCovs, l = 0, covProfile=NULL) {
   checkList(output, "output")
   numCov <- length(output$colMapping)
   if (!is.null(covProfile)) {
     checkVector(covProfile, "covProfile", numericOnly=TRUE)
     checkLength(covProfile, numCov, "covProfile")
+    covProfile <- getCenterScaledCovProfile(covProfile, output$centerScaleList)
   } else { # covProfile is NULL
-    covProfile <- c(1, rep(0, numCov)) # default to baseline profile
+    covProfile <- c(1, rep(0, numCov - 1)) # default to baseline profile
   }
-  if (!is.null(forCovs)) {
-    checkValuesBetween(forCovs, 1, numCov)
-  } else {
-    forCovs <- 2:numCov # Default to all covariates (except intercept)
+  checkValuesBetween(forCovs, 1, numCov, "forCovs")
+  i = 1
+  for (cov in forCovs) {
+    change[i] <- getCenterScaledChange(change[i], output$centerScaleList, cov,
+                                       covProfile)
+    i <- i + 1
   }
   if (l < 0 | l > 1)
     stop(paste("l must be in [0, 1)."))
@@ -527,8 +559,8 @@ calcDeltaAlphaDiv <- function(output, change, l = 0, covProfile=NULL,
     } else {
       endTV <- startTV
       betaVCFits <- output$beta[startTV, , , drop=FALSE]
-      betaVCFits <- array(rep(betaVCFits, each = 100), 
-                        dim = c(100, dim(betaVCFits)[2], dim(betaVCFits)[3]))
+      betaVCFits <- array(rep(betaVCFits, each = 250), 
+                          dim = c(250, dim(betaVCFits)[2], dim(betaVCFits)[3]))
     }
 
     toReturn[[output$colMapping[[cov]]]] <- getDeltaHillDiversity(betaVCFits, 
@@ -536,6 +568,7 @@ calcDeltaAlphaDiv <- function(output, change, l = 0, covProfile=NULL,
                                                                   sumExpFit,
                                                                   l=l,
                                                                change=change[i])
+    rownames(toReturn[[output$colMapping[[cov]]]]) <- testPoints
     i <- i + 1
     startTV <- endTV + 1 # Move to next covariate
   }
@@ -584,7 +617,7 @@ combineOutputs <- function(outputFiles, saveToFile = TRUE,
 
   # Initialize combinedOutput with the first output
   for (key in outputKeys) {
-    if (grepl("prop|mean|prop", key, ignore.case=TRUE)) {
+    if (grepl("prop|mean", key, ignore.case=TRUE)) {
       # if prop or mean are in the key, then we must combine by averaging
       combinedOutput[[key]] <- output[[key]]/numOutputs
     } else {
@@ -611,13 +644,12 @@ combineOutputs <- function(outputFiles, saveToFile = TRUE,
   for (file in outputFiles[-1]) { # Skip the first file as it is already read
     output <- readRDS(file)
     for (key in outputKeys) {
-      if (grepl("prop|mean|prop", key, ignore.case=TRUE)) {
+      if (grepl("prop|mean", key, ignore.case=TRUE)) {
         # if prop or mean are in the key, then we must combine by averaging
-        combinedOutput[[key]] <- combinedOutput[[key]] 
-                                 + (output[[key]]/numOutputs)
+        combinedOutput[[key]] <- combinedOutput[[key]] +
+                                 (output[[key]]/numOutputs)
       } else {
         # otherwise, we have samples of a parameter, so we can just combine
-        
         # interleave the samples from each output
         sOrig = 1
         for (s in seq(fileNum, numSamples*numOutputs, by = numOutputs)) {
@@ -768,4 +800,278 @@ generateData <- function(n, c, p, totalCountRange = c(100, 200),
               timePoints = timePoints, betaIntercepts = betaTrue, rTrue = rTrue, 
               betaFuncMat = funcMat, trueZI = sum(gamma == 0)/length(gamma),
               trueRA=RA, funcList=funcList)) 
+}
+
+#' @title Get Proportion of 0 in 95% CI of \eqn{\beta_{jp}(t)}
+#' @description Calculates the proportion of \eqn{\beta_{jp}(t)} functions that 
+#' have the zero function in their 95% credible interval.
+#' @param output (list) Output list from \code{FunCZIDM}.
+#' @param varCovRange (numeric vector, default=NULL) Range of the varying 
+#' covariate to evaluate the \eqn{\beta_{jp}(t)} functions. By default, the
+#' range is the min and max of the varying covariate in the data.
+#' @return A matrix with columns "category", "covariate", and "Proportion 0 in 
+#' 95 CI"
+#' @export 
+getPropNullInCI <- function(output, 
+                            varCovRange = NULL) {
+  XvartoXColMapping = output$XvartoXColMapping
+  colMapping = output$colMapping
+  varyingCov = output$varyingCov
+  catNames = output$catNames
+  interiorKnots = output$interiorKnots 
+  boundaryKnots = output$boundaryKnots
+  basisFunc = output$basisFunc 
+  df = output$df
+
+  # getting the points to evaluate
+  minVarCov <- ifelse(is.null(varCovRange), min(varyingCov), varCovRange[1])
+  maxVarCov <- ifelse(is.null(varCovRange), max(varyingCov), varCovRange[2])
+  testPoints <- seq(minVarCov,  maxVarCov, length.out = 250)
+
+  # get the basis functions for the test points
+  basis <- basisFunc(testPoints, df=df, intercept=FALSE,
+                     knots=interiorKnots,
+                     Boundary.knots=boundaryKnots)
+  basis <- cbind(1, basis)
+  numDf <- df + 1
+  
+  # get the zero functions for checking the null in CI
+  zeroFunc <- testPoints*0
+  
+  startTV <- match(2, XvartoXColMapping) # First instance of the first covariate
+  numCov <- length(colMapping) # number of covariates
+  numCat <- length(catNames) # number of categories
+  returnMat <- matrix(NA, nrow=numCat*(numCov-1), ncol=3)
+  colnames(returnMat) <- c("category", "covariate", "Proportion 0 in 95 CI")
+  for (cov in 2:numCov) {
+    # if the next instance in the mapping is not the next covariate, then
+    # the covariate does not have varying coefficients. So startTV == endTV.
+    if (cov == XvartoXColMapping[startTV + 1]) {
+      endTV <- startTV + numDf - 1
+      betaVCFits <- getBetaVC(output$beta, c(startTV, endTV), basis)
+    } else {
+      endTV <- startTV
+      betaVCFits <- output$beta[startTV, , , drop=FALSE]
+      betaVCFits <- array(rep(betaVCFits, each = 250), 
+                          dim = c(250, dim(betaVCFits)[2], dim(betaVCFits)[3]))
+    }
+
+    # the 2.5th and 97.5th percentiles of the beta functions
+    betaQuant <- apply(betaVCFits, c(1, 2), quantile, probs=c(0.025, 0.975))
+    # checking if the zero function is in the 95% CI of the beta functions
+    zeroInCI <- betaQuant[1,,] < zeroFunc & zeroFunc < betaQuant[2,,]
+    # the proportion of function that have the zero function in the 95% CI
+    propZeroInCI <- apply(zeroInCI, 2, mean)
+    covariate <- colMapping[cov][[1]] # covariate name
+    for (catToCheck in 1:numCat) {
+      category <- catNames[catToCheck]
+      returnMat[(cov-2)*numCat + catToCheck, ] <- c(category, covariate, 
+                                                    propZeroInCI[catToCheck])
+    }
+    startTV <- endTV + 1 
+  }
+
+  return(returnMat)
+}
+
+#' @title Get Min/Max Multiplicative Change in Alpha Diversity
+#' @description Finds the covariate profiles corresponding to the minimum and 
+#' maximum mean multiplicative change in alpha diversity 
+#' (\eqn{\Delta_v\alpha_p(t)}) for a given covariate, within intervals of the 
+#' varying covariate.
+#' @param output (list) Output list from \code{FunCZIDM}.
+#' @param changeFrom (numeric) Value to change from for the covariate.
+#' @param changeTo (numeric) Value to change to for the covariate.
+#' @param forCov (integer) Index of the covariate for which to calculate the change.
+#' @param covariates (data.frame) Covariate data.
+#' @param varyingCov (numeric vector) Values of the varying covariate.
+#' @param varyingCovBreaks (numeric vector) Breaks for intervals of the varying covariate.
+#' @param l (numeric, default=0) Diversity parameter for the Hill diversity index.
+#' @param reqSig (logical, default=FALSE) If TRUE, only consider intervals where the 95% CI does not include 1.
+#' @return A list with elements \code{maxCov} and \code{minCov}, each a matrix of covariate profiles corresponding to the maximum and minimum mean multiplicative change in alpha diversity for each interval.
+#' @export
+getMinMaxDeltaAlphaDiv <- function(output, changeFrom, changeTo, forCov, 
+                                   covariates, varyingCov, varyingCovBreaks,
+                                   l = 0, reqSig = FALSE) {
+  checkList(output, "output")
+  numCov <- length(output$colMapping)
+  checkDataFrame(covariates, "covariates")
+  X <- model.matrix(~., data=covariates) 
+  for (row in 1:nrow(X)) {
+    covProfiles <- getCenterScaledCovProfile(X, output$centerScaleList)
+  }
+  covProfiles[, forCov] <- changeFrom
+
+  checkValuesBetween(forCov, 1, numCov, "forCov")
+  changeTo <- getCenterScaledChange(changeTo, output$centerScaleList, forCov,
+                                       covProfiles[1,])
+
+  if (l < 0 | l > 1)
+    stop(paste("l must be in [0, 1)."))
+
+  basis <- output$basisFunc(varyingCov, df=output$df, intercept=FALSE,
+                            knots=output$interiorKnots,
+                            Boundary.knots=output$boundaryKnots)
+  basis <- cbind(1, basis) # Add intercept
+  numDf <- output$df + 1 # + 1 for intercept
+
+  fit <- getFitOfData2(output$beta, basis, covProfiles, output$XvartoXColMapping)
+  sumExpFit <- getSumExpFit(fit)
+  
+  startTV <- match(forCov, output$XvartoXColMapping) # First instance of the cov 
+
+  while (forCov > output$XvartoXColMapping[startTV]) {
+    # If the cov is not current startTV, then the current startTV is not
+    # not a covariate that is wanted to calculate deltaRA for.
+    startTV <- startTV + 1
+  }
+
+  # if the next instance in the mapping is not the next covariate, then
+  # the covariate does not have varying coefficients. So startTV == endTV.
+  if (forCov == output$XvartoXColMapping[startTV + 1]) {
+    endTV <- startTV + numDf - 1
+    betaVCFits <- getBetaVC(output$beta, c(startTV, endTV), basis)
+  } else {
+    endTV <- startTV
+    betaVCFits <- output$beta[startTV, , , drop=FALSE]
+    betaVCFits <- array(rep(betaVCFits, each = 250), 
+                        dim = c(250, dim(betaVCFits)[2], dim(betaVCFits)[3]))
+  }
+
+  deltaDivs <- getDeltaHillDivMeanAndCI(betaVCFits, fit, sumExpFit, l=l, 
+                                        change=changeTo)
+  
+  minMat <- matrix(covariates[1,], nrow=length(varyingCovBreaks)-1, 
+                   ncol=ncol(covariates), byrow=T)
+  maxMat <- matrix(covariates[1,], nrow=length(varyingCovBreaks)-1,
+                   ncol=ncol(covariates), byrow=T)
+  for (i in 2:length(varyingCovBreaks)) {
+    low <- varyingCovBreaks[i - 1]
+    high <- varyingCovBreaks[i]
+    inVaryingCovBreaks <- which((varyingCov >= low)&(varyingCov < high))
+    vals <- deltaDivs[inVaryingCovBreaks, ]
+    if (reqSig) {
+      minIdx <- which((vals[,2] == min(vals[,2]))&
+                      ((vals[,1] > 1)|(vals[,2] < 1)))
+      maxIdx <- which((vals[,2] == max(vals[,2]))&
+                      ((vals[,1] > 1)|(vals[,2] < 1)))
+      if (length(minIdx) != 0){
+        minIdx <- inVaryingCovBreaks[minIdx] 
+        minMat[i - 1,] <- covariates[minIdx,]
+      } else {
+        minMat[i - 1,] <- NA
+      }
+      if (length(maxIdx) != 0){
+        maxIdx <- inVaryingCovBreaks[maxIdx]
+        maxMat[i - 1,] <- covariates[maxIdx,]
+      } else {
+        maxMat[i - 1,] <- NA
+      }
+    } else {
+      minIdx <- which.min(vals[,2])
+      maxIdx <- which.max(vals[,2])
+      minIdx <- inVaryingCovBreaks[minIdx]
+      minMat[i - 1,] <- covariates[minIdx,]
+      maxIdx <- inVaryingCovBreaks[maxIdx]
+      maxMat[i - 1,] <- covariates[maxIdx,]
+    }
+  }
+
+  minMat[, forCov - 1] <- NA
+  maxMat[, forCov - 1] <- NA
+  return(list("maxCov" = maxMat, "minCov" = minMat))
+}
+
+#' @title Get Min/Max Multiplicative Change in Relative Abundance
+#' @description Finds the covariate profiles corresponding to the minimum and maximum mean multiplicative change in relative abundance (\eqn{\Delta_vRA_{jp}(t)}) for a given covariate and category, within intervals of the varying covariate.
+#' @param output (list) Output list from \code{FunCZIDM}.
+#' @param changeFrom (numeric) Value to change from.
+#' @param changeTo (numeric) Value to change to.
+#' @param forCov (integer) Index of the covariate for which to calculate.
+#' @param forCat (integer) Index of the category for which to calculate.
+#' @param covariates (data.frame) Covariate data.
+#' @param varyingCov (numeric vector) Values of the varying covariate.
+#' @param varyingCovBreaks (numeric vector) Breaks for intervals of the varying covariate.
+#' @param reqSig (logical, default=FALSE) If TRUE, only consider intervals where the 95% CI does not include 1.
+#' @return A list with elements "maxCov" and "minCov", each a matrix of covariate profiles.
+#' @export
+getMinMaxDeltaRA <- function(output, changeFrom, changeTo, forCov, forCat,
+                             covariates, varyingCov, varyingCovBreaks,
+                             reqSig = FALSE) {
+  checkList(output, "output")
+  numCov <- length(output$colMapping)
+  checkDataFrame(covariates, "covariates")
+  X <- model.matrix(~., data=covariates)
+  for (row in 1:nrow(X)) {
+    covProfiles <- getCenterScaledCovProfile(X, output$centerScaleList)
+  }
+  covProfiles[, forCov] <- changeFrom
+
+  checkValuesBetween(forCov, 1, numCov, "forCov")
+  checkValuesBetween(forCat, 1, length(output$catNames), "forCat")
+  change <- getCenterScaledChange(changeTo, output$centerScaleList, forCov, covProfiles[1,])
+
+  basis <- output$basisFunc(varyingCov, df=output$df, intercept=FALSE,
+                            knots=output$interiorKnots,
+                            Boundary.knots=output$boundaryKnots)
+  basis <- cbind(1, basis)
+  numDf <- output$df + 1
+
+  fit <- getFitOfData2(output$beta, basis, covProfiles, output$XvartoXColMapping)
+  sumExpFit <- getSumExpFit(fit)
+
+  startTV <- match(forCov, output$XvartoXColMapping)
+  while (forCov > output$XvartoXColMapping[startTV]) {
+    startTV <- startTV + 1
+  }
+
+  if (forCov == output$XvartoXColMapping[startTV + 1]) {
+    endTV <- startTV + numDf - 1
+    betaVCFits <- getBetaVC(output$beta, c(startTV, endTV), basis)
+  } else {
+    endTV <- startTV
+    betaVCFits <- output$beta[startTV, , , drop=FALSE]
+    betaVCFits <- array(rep(betaVCFits, each = nrow(basis)),
+                        dim = c(nrow(basis), dim(betaVCFits)[2], dim(betaVCFits)[3]))
+  }
+
+  # Get mean and CI for the specified category
+  deltaRA <- getDeltaRAMeanAndCI(forCat - 1, betaVCFits, fit, sumExpFit, change=change)
+
+  minMat <- matrix(covariates[1,], nrow=length(varyingCovBreaks)-1, 
+                   ncol=ncol(covariates), byrow=T)
+  maxMat <- matrix(covariates[1,], nrow=length(varyingCovBreaks)-1,
+                   ncol=ncol(covariates), byrow=T)
+  for (i in 2:length(varyingCovBreaks)) {
+    low <- varyingCovBreaks[i - 1]
+    high <- varyingCovBreaks[i]
+    inVaryingCovBreaks <- which((varyingCov >= low) & (varyingCov < high))
+    vals <- deltaRA[inVaryingCovBreaks, , drop=FALSE]
+    if (nrow(vals) == 0) next
+    if (reqSig) {
+      minIdx <- which((vals[,2] == min(vals[,2])) &
+                      ((vals[,1] > 1) | (vals[,3] < 1)))
+      maxIdx <- which((vals[,2] == max(vals[,2])) &
+                      ((vals[,1] > 1) | (vals[,3] < 1)))
+      if (length(minIdx) != 0){
+        minIdx <- inVaryingCovBreaks[minIdx]
+        minMat[i - 1,] <- X[minIdx,]
+      }
+      if (length(maxIdx) != 0){
+        maxIdx <- inVaryingCovBreaks[maxIdx]
+        maxMat[i - 1,] <- X[maxIdx,]
+      }
+    } else {
+      minIdx <- which.min(vals[,2])
+      maxIdx <- which.max(vals[,2])
+      minIdx <- inVaryingCovBreaks[minIdx]
+      minMat[i - 1,] <- X[minIdx,]
+      maxIdx <- inVaryingCovBreaks[maxIdx]
+      maxMat[i - 1,] <- X[maxIdx,]
+    }
+  }
+
+  minMat[, forCov - 1] <- NA
+  maxMat[, forCov - 1] <- NA
+  return(list("maxCov" = maxMat, "minCov" = minMat))
 }

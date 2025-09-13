@@ -21,7 +21,7 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
                      const int BURN_IN = 0,
                      const int NUM_THIN = 1,
                      const int ADJ_FREQ = 250,
-                     const double PROPOSAL_CAP = 0.75,
+                     const double PROPOSAL_CAP = 0.0, // no capping
                      const bool ZI_GROUPED = true,
                      const bool ADJ_PROPOSALS = true,
                      const bool RETURN_BURN_IN = false,
@@ -117,7 +117,7 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
   // The proposal variances for beta and r can be specified.
   // If proposal adjustment is on, this is the initial proposal variance for 
   // beta.
-  double betaPropSD = .3,
+  double betaPropSD = .1,
          rProposalSD = 1.;
   if (PROPOSAL_VARS.containsElementNamed("beta proposal sd"))
     betaPropSD = as<double>(PROPOSAL_VARS["beta proposal sd"]);

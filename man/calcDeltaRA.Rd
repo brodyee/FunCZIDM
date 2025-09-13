@@ -4,21 +4,22 @@
 \alias{calcDeltaRA}
 \title{Calculate the Multipicative Change in Relateive Abundance}
 \usage{
-calcDeltaRA(output, change, covProfile = NULL, forCovs = NULL, forCats = NULL)
+calcDeltaRA(output, change, forCovs, covProfile = NULL, forCats = NULL)
 }
 \arguments{
 \item{output}{(list) Output list from \code{FunCZIDM}}
 
-\item{change}{(numeric) The change of the covariate.}
+\item{change}{(numeric vector) The change of the covariate.}
+
+\item{forCovs}{(integer vector) Indices of \code{covariates}
+for which \eqn{\Delta_vRA_{jp}(t)} to be calculated.}
 
 \item{covProfile}{(numeric vector, default=NULL) Covariate profile.
 If NULL, the baseline profile is used (ie all zeros).}
 
-\item{forCovs}{(integer vector, default=NULL) Indices of \code{covariates}
-for which \eqn{\Delta_vRA_{jp}(t)} to be calculated.}
-
 \item{forCats}{(integer vector, default=NULL) Indices of categories
-for which \eqn{\Delta_vRA_{jp}(t)} is calculated.}
+for which \eqn{\Delta_vRA_{jp}(t)} is calculated. If NULL, then all
+categories are used.}
 }
 \value{
 A list of 3-dimensional array \eqn{\Delta_vRA_{jp}(t)} samples
