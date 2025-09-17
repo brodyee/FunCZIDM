@@ -160,6 +160,19 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// getHillDiversityMeanAndCI
+arma::mat getHillDiversityMeanAndCI(const arma::cube& fit, const arma::mat& sumExpFit, const double l);
+RcppExport SEXP _FunCZIDM_getHillDiversityMeanAndCI(SEXP fitSEXP, SEXP sumExpFitSEXP, SEXP lSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::cube& >::type fit(fitSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type sumExpFit(sumExpFitSEXP);
+    Rcpp::traits::input_parameter< const double >::type l(lSEXP);
+    rcpp_result_gen = Rcpp::wrap(getHillDiversityMeanAndCI(fit, sumExpFit, l));
+    return rcpp_result_gen;
+END_RCPP
+}
 // getDeltaHillDivMeanAndCI
 arma::mat getDeltaHillDivMeanAndCI(const arma::cube& betaVCFits, const arma::cube& fit, const arma::mat& sumExpFit, const double l, double change);
 RcppExport SEXP _FunCZIDM_getDeltaHillDivMeanAndCI(SEXP betaVCFitsSEXP, SEXP fitSEXP, SEXP sumExpFitSEXP, SEXP lSEXP, SEXP changeSEXP) {
@@ -301,6 +314,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_FunCZIDM_getBetaVC", (DL_FUNC) &_FunCZIDM_getBetaVC, 3},
     {"_FunCZIDM_getHillDiversity", (DL_FUNC) &_FunCZIDM_getHillDiversity, 5},
     {"_FunCZIDM_getDeltaHillDiversity", (DL_FUNC) &_FunCZIDM_getDeltaHillDiversity, 5},
+    {"_FunCZIDM_getHillDiversityMeanAndCI", (DL_FUNC) &_FunCZIDM_getHillDiversityMeanAndCI, 3},
     {"_FunCZIDM_getDeltaHillDivMeanAndCI", (DL_FUNC) &_FunCZIDM_getDeltaHillDivMeanAndCI, 5},
     {"_FunCZIDM_getAllCatDeltaRA", (DL_FUNC) &_FunCZIDM_getAllCatDeltaRA, 4},
     {"_FunCZIDM_getDeltaRA", (DL_FUNC) &_FunCZIDM_getDeltaRA, 5},

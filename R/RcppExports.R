@@ -41,6 +41,10 @@ getDeltaHillDiversity <- function(betaVCFits, fit, sumExpFit, l = 0, change = 1)
     .Call(`_FunCZIDM_getDeltaHillDiversity`, betaVCFits, fit, sumExpFit, l, change)
 }
 
+getHillDiversityMeanAndCI <- function(fit, sumExpFit, l = 0) {
+    .Call(`_FunCZIDM_getHillDiversityMeanAndCI`, fit, sumExpFit, l)
+}
+
 getDeltaHillDivMeanAndCI <- function(betaVCFits, fit, sumExpFit, l = 0, change = 1) {
     .Call(`_FunCZIDM_getDeltaHillDivMeanAndCI`, betaVCFits, fit, sumExpFit, l, change)
 }

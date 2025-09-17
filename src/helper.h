@@ -30,7 +30,7 @@ sp_mat makeBlockMat(const mat& X, const uvec& RAND_EFF_COLS,
   sp_mat blockMat(NUM_OBS, NUM_RE_COEF);
 
   startIdx = 0;
-  for (int id = 0; id < ID_END_IDX.n_elem; id++) {
+  for (auto id = 0; id < ID_END_IDX.n_elem; id++) {
     endIdx = ID_END_IDX[id];
     startCol = id*NUM_RE_PER_ID;
     endCol = startCol + NUM_RE_PER_ID - 1;
@@ -221,7 +221,7 @@ void sampleEtaGrouped(Mat<short>& eta, mat& c, const mat& gamma,
   
   auto fillcProp = [&gamma](mat& c, int cat, unsigned int startIdx,
                             unsigned int endIdx) {
-    for (int i = startIdx; i <= endIdx; i++) {
+    for (unsigned int i = startIdx; i <= endIdx; i++) {
       c.at(i, cat) = R::rgamma(gamma.at(i, cat), 1);
     }
   };
@@ -610,7 +610,7 @@ arma::cube getFit(const arma::cube& beta, const arma::mat& basis,
 
   int startIdx = 0;
   int endIdx = NUM_DF - 1; // intercept is always varying, so this is endIdx
-  for (int cov = 0; cov < covariates.n_elem; cov++) {
+  for (auto cov = 0; cov < covariates.n_elem; cov++) {
     if (covIdxs[startIdx] != covIdxs[endIdx]) {
       endIdx = startIdx; // cov not varying, so endIdx is startIdx
       Xtv.cols(startIdx, endIdx) = ones*covariates[cov];
@@ -672,7 +672,7 @@ arma::cube getFitOfData2(const arma::cube& beta, const arma::mat& basis,
 
   int startIdx = 0;
   int endIdx = NUM_DF - 1; // intercept is always varying, so this is endIdx
-  for (int cov = 0; cov < covariates.n_cols; cov++) {
+  for (auto cov = 0; cov < covariates.n_cols; cov++) {
     if (covIdxs[startIdx] != covIdxs[endIdx]) {
       endIdx = startIdx; // cov not varying, so endIdx is startIdx
       Xtv.cols(startIdx, endIdx) = ones%covariates.col(cov);
@@ -708,7 +708,7 @@ arma::cube getRAFits(const arma::cube& beta, const arma::mat& basis,
 
   int startIdx = 0;
   int endIdx = NUM_DF - 1;
-  for (int cov = 0; cov < covariates.n_elem; cov++) {
+  for (auto cov = 0; cov < covariates.n_elem; cov++) {
     if (covIdxs[startIdx] != covIdxs[endIdx]) {
       endIdx = startIdx; // cov not varying, so endIdx is startIdx
       Xtv.cols(startIdx, endIdx) = ones*covariates[cov];
@@ -779,7 +779,7 @@ arma::mat getHillDiversity(const arma::cube& beta, const arma::mat& basis,
   
   int startIdx = 0;
   int endIdx = NUM_DF - 1;
-  for (int cov = 0; cov < covariates.n_elem; cov++) {
+  for (auto cov = 0; cov < covariates.n_elem; cov++) {
     if (covIdxs[startIdx] != covIdxs[endIdx]) {
       endIdx = startIdx; // cov not varying, so endIdx is startIdx
       Xtv.cols(startIdx, endIdx) = ones*covariates[cov];
@@ -833,6 +833,40 @@ arma::mat getDeltaHillDiversity(const arma::cube& betaVCFits,
   
   return ret;
 } // previously getHillDivMultiChange
+
+//[[Rcpp::export]]
+arma::mat getHillDiversityMeanAndCI(const arma::cube& fit, 
+                                    const arma::mat& sumExpFit,
+                                    const double l = 0) {
+  /*
+   covariates (vec): The first cov must be a 1 for the intercept, the rest will 
+   be the covariate profile.
+   */
+  const int NUM_SAMPLE = fit.n_slices,
+            NUM_TESTPOINTS = fit.n_rows;
+  mat aDiv(NUM_TESTPOINTS, NUM_SAMPLE);
+  cube expFit = exp(fit);
+  
+  for (int s = 0; s < NUM_SAMPLE; s++) {
+    expFit.slice(s).each_col() /= sumExpFit.col(s);
+    if (l != 0)
+      aDiv.col(s) = arma::pow(sum(expFit.slice(s)%arma::pow(expFit.slice(s),
+                                                            -1*l), 1), 1/l);
+    else
+      aDiv.col(s) = sum(expFit.slice(s)%log(expFit.slice(s)), 1);
+  }
+  
+  if (l == 0)
+    aDiv *= -1;
+  
+  mat out(aDiv.n_rows, 3);
+  mat quantiles = arma::quantile(aDiv, arma::vec({0.025, 0.975}), 1);
+  
+  out.col(0) = quantiles.col(0); // 0.025 quantile
+  out.col(1) = arma::mean(aDiv, 1); // mean
+  out.col(2) = quantiles.col(1); // 0.975 quantile
+  return out;
+}
 
 //[[Rcpp::export]]
 arma::mat getDeltaHillDivMeanAndCI(const arma::cube& betaVCFits,

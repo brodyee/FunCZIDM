@@ -82,3 +82,37 @@ If using a windows machine, either using WSL or Git Bash will allow for this
 script to run. There are other options for running multiple R processes 
 simultaneously, though they may result in differing results due to the random
 number generation.
+
+### `conda` Enviroment for `shiny` App
+
+While it is not required to make an `conda` enviroment, we recommend it to 
+reduce multiple installs when running directly from `reticulate`. Also, errors
+with package installs are easier to sort out within an enviroment than from 
+`reticulate`. Below are the steps to set up the enviroment.
+
+#### Installing `conda`
+
+If you do not currently have conda installed, you can install it locally 
+[here](https://www.anaconda.com/download/success). Choose the appropiate file 
+under Miniconda Installers, and click on it after installing.
+
+#### Creating the Enviroment for the `shiny` app
+
+The everything nessicary for the `shiny` app python enviorment is contained in
+`inst/app/environment.yml`. One can download it from GitHub or find it locally 
+after installing the package with the following line in R:
+
+```
+system.file('app', 'environment.yml', package='FunCZIDM')
+```
+
+Once moving the file to the working directory, you can create the conda 
+enviroment with the following:
+
+```
+conda env create -f environment.yml
+```
+
+This will create the `shinyPy` environment used in the shiny app. The app 
+will automatically activate the enviorment, so there is no need to activate it 
+after creating it.
