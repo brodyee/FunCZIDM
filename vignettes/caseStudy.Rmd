@@ -11,8 +11,8 @@ VignetteBuilder: knitr
 
 # Introduction
 
-In this vignette, we walk through how to use the `FunCZIDM` package and the associated
-shipy app. We use the case study data in the paper "A Bayesian Functional 
+In this vignette, we walk through how to use the `FunCZIDM` package and the 
+shiny app. We use the case study data in the paper "A Bayesian Functional 
 Concurrent Zero-Inflated Dirichlet Multinomial Regression Model" to provide examples
 of how you would use and gain inference from the model. This package contains 
 the data from the case study and the samples from the case study used in the paper.
@@ -31,8 +31,8 @@ data(infantData)
 ```
 
 This loads two objects: `infantCovariates` and `infantCounts`. The first step is
-to ensure the covariates and counts data are aligned. We can check the two 
-data sets are aligned by checking the subject id's and times are aligned.
+to ensure the covariates and counts data are aligned. We can check that the two 
+datasets are aligned by checking the subject id's and times are aligned.
 
 ```{r}
 # Check count and covariate data are aligned
@@ -43,7 +43,7 @@ data sets are aligned by checking the subject id's and times are aligned.
 
 The `FunCZIDM` function requires the categorical covariates to be factors, and 
 will use the reference level as the reference category for the variable. Below,
-we convert the categorical variables to factors, and ensure the reference 
+we convert the categorical variables to factors and ensure the reference 
 level is the one we want.
 
 ```{r}
@@ -64,7 +64,7 @@ str(infantCovariates)
 The continuous variables will be standardized automatically, 
 and the output of `FunCZIDM` will contain the means and standard deviations used 
 for standardization. Other functions in this package will use this to 
-standardized automatically, so you will always input the original scale and 
+standardize automatically, so you will always input the original scale and 
 location of the continuous variables.
 
 Now we can remove the subject id's and time variables from the covariates and
@@ -104,8 +104,8 @@ colnames(infantCounts)
 # Running the Model
 
 Once the data are set up, one can sample from the FunC-ZIDM model using the 
-`FunCZIDM` function. The first four inputs are what we prepared in the pervious 
-section. Next we specify the number of total iterations (`iter`), 
+`FunCZIDM` function. The first four inputs are what we prepared in the previous  
+section. Next, we specify the number of total iterations (`iter`), 
 the burn-in iterations (`burnIn`),
 and how much to thin by (`thin`). To allow for efficient knitting, we only do 85 
 iterations with a 75 burn-in while thinning to every 10th iteration. If you 
@@ -120,16 +120,17 @@ the relative abundance samples for each individual. This can be specified by
 adding `"RA"` to the `toReturn` argument. 
 
 The model has several priors that can be adjusted using the `priors` argument. 
- Additionally, the proposal standard deviations for 
+Additionally, the proposal standard deviations for 
 the $\beta_{jpd}^*$ and $r_{jp}$ can be initialized using the `proposalVars` 
-argument. By default, the prioirs and proposal standard deviations are set to the values used in the case study and 
-simulations of the paper.
+argument. By default, the priors and proposal standard deviations are set to the 
+values used in the case study and simulations of the paper.
 
 For the splines, one can specify the degrees of freedom (`df`), the degree of 
 the splines (`degree`), and the basis function to use (`basisFunc`). The default
-values (4, 3, and `splines::bs`) are the ones used in the case study and simulations of the paper.
+values (4, 3, and `splines::bs`) are the ones used in the case study and 
+simulations of the paper.
 
-If there are covariates that are assumed to not have a time-varying effect, one 
+If there are covariates that are assumed not to have a time-varying effect, one 
 can specify the indices of these covariates in the `covWithoutVC` argument. In 
 the case study, we assume the period of study to be time-invariant.
 
@@ -146,8 +147,8 @@ the output contains the burn-in, then the mean $\beta_{jp}(t)$ will be estimated
 using the burn-in samples as well.
 
 There are some other inputs that can be specified, however we recommend keeping 
-them at their defaults unless a strong reason to change. A full description of the arguments and options can be 
-found in the reference manual.
+them at their defaults unless a strong reason to change. A full description of 
+the arguments and options can be found in the reference manual.
 
 ```{r}
 output <- FunCZIDM(counts=infantCounts, 
@@ -178,7 +179,7 @@ If the output files
 contain the burn-in, then the combined output will too. One can resave the `rds` 
 without the burn-in or take the last `(iter - burnIn)/thin` times the number of 
 chains samples from the combined output. An example of resaving the output 
-without the burn-in is provided below.
+without the burn-in are provided below.
 
 ```{r, eval=FALSE}
 files <- c("output1.rds", "output2.rds", "output3.rds", "output4.rds")
@@ -207,7 +208,7 @@ of each variable in the reference manual.
 # Inference
 
 We demonstrate how to use the functions to obtain inference from the samples 
-using the preloaded samples. The package has the ability to calculate the 
+using the preloaded samples. The package can calculate the 
 relative abundance ($\text{RA}_j(t)$) and $\alpha$-diversity functions 
 ($\alpha(t)$), the multiplicative change in relative abundance 
 ($\Delta_v \text{RA}_{jp}(t)$) and $\alpha$-diversity functions 
@@ -234,7 +235,7 @@ category and covariate combinations are the only ones that do not contain the
 null function for the entire time period. This doesn't mean the other covariates
 multiplicative changes credible intervals do not contain the null function, but 
 these variables are a good starting point for exploration unless there is 
-interest particular covariates.
+interest in particular covariates.
 
 ## Relative Abundance
 
@@ -251,7 +252,7 @@ covariate you want the change in. Similarly, you can view the category names in
 the order the model uses them with `combinedOutput$catNames`. We fill the 
 covariate profile with the intercept, 27 weeks of gestational age, the base 
 categories, and .3 proportion of days on antibiotics. Then we use this, along 
-with the output from `FunCZIDM` to get the relative abundance from `calcRA`. 
+with the output from `FunCZIDM`, to get the relative abundance from `calcRA`. 
 
 ```{r}
 # always put 1 for the intercept
@@ -264,7 +265,7 @@ dim(RA)
 We get all the categories 
 relative abundance samples. Where we have `r dim(RA)[1]` timepoints, 
 `r dim(RA)[2]` categories, and `r dim(RA)[3]` samples. With these samples, we 
-can visualize the mean relative abundance over time for tha taxa. Below, we 
+can visualize the mean relative abundance over time for the taxa. Below, we 
 provide an example of plotting the mean relative abundance over time for 
 Bacilli, Clostridia, and Gammaproteobacteria.
 
@@ -295,8 +296,8 @@ hist(RA[77, taxa[3], ], main=taxa[3], xlab="Relative Abundance",
 
 With `ggtern`, we can view the distribution on the simplex. We must collapse 
 categories to have 3 categories total. Below we have the simplex of Bacilli, 
-Gammaproteobacteria, and the sum of all other relative abundance's. We then plot
-the distribution of these three on the simplex at three different time point. 
+Gammaproteobacteria, and the sum of all other relative abundances. We then plot
+the distribution of these three on the simplex at three different time points. 
 This gives us an idea of how the distribution shifts over time.
 
 ```{r}
@@ -326,7 +327,7 @@ ggtern(S, aes(sumOthers, Bacilli, Gammaproteobacteria, color = group)) +
 ```
 
 Now that we have an idea of the relative abundance at baseline, we can look into
-the multiplicative change from these relative abundance. Using the same 
+the multiplicative change from these relative abundances. Using the same 
 `covProfile` as before, we assign the covariates we want to see a change in 
 (`forCovs`) and the change of the covariates respectively (`change`). Then, we 
 assign categories that we want to the change in (`forCats`).  
@@ -402,7 +403,7 @@ colMeans(oneInCI)
 
 We can see that many categories do not contain the null effect over the whole 
 time period, whereas the $\beta_{jp}(t)$ credible intervals do contain the 
-null effect over the whole time period (with exception of Gammaproteobacteria).
+null effect over the whole time period (with the exception of Gammaproteobacteria).
 Additionally, this is only for a 2 week increase in gestational age from 27 
 weeks of gestational age at birth. With the associated shiny app, one can easily
 plot the mean multiplicative change over a range of changes. 
@@ -515,8 +516,8 @@ legend("topright", legend=covname, col=cols, lwd = 2)
 
 Again, all categories are used in calculating the diversity, so we just have 
 `r dim(deltaAlphaDiv[[1]])[1]` timepoints and `r dim(deltaAlphaDiv[[1]])[2]`
-samples. We find that the mode of birth and breast milk proportion are the only 
-covariates that contain the nul effect in the credible interval over all the 
+samples. We find that the mode of birth and the breast milk proportion are the only 
+covariates that contain the null effect in the credible interval over all the 
 first 50 days.
 
 We can plot the simple for a few different covariate profiles to see the 
@@ -587,9 +588,9 @@ sort(apply(abs(meanBetas), 2, max))
 ```
 
 This shows the coefficient of Gammaproteobacteria for gestational age has the 
-smallest average mean $\beta_{jp}(t)$ over time and smallest $|\beta_{jp}(t)|$.
-Most others are close to zero, so when the gestional age is changed the 
-concentation parameter of Gammaproteobacteria is decreased the most. This causes 
+smallest average mean $\beta_{jp}(t)$ over time and the smallest $|\beta_{jp}(t)|$.
+Most others are close to zero, so when the gestational age is changed the 
+concentration parameter of Gammaproteobacteria is decreased the most. This causes 
 the distribution to get pushed away from Gammaproteobacteria's corner, and 
 raises all other relative abundance consequently.
 
@@ -621,7 +622,7 @@ betaFunc <- ifelse(plusMinus >= 0, 1, -1)*f(generatedData$timePoints)
 
 This is only for the covariates. The intercept functions can be found in 
 `generatedData$betaIntercepts`. An example of fitting the model with the generated 
-data, then checking the coverage of the true beta functions is below.
+data, then checking the coverage of the true beta functions are below.
 
 ```{r}
 X <- generatedData[["covariates"]]
@@ -659,7 +660,7 @@ lines(testpoints, betaFunc, col="red")
 
 For visualization, the shiny app associated with the package can be used
 to generate plots with ease. This app can be run with `runPlotApp`, then the 
-samples can be uploaded locally. [This](toDo) video give a walk through on how 
+samples can be uploaded locally. [This](toDo) video gives a walk through on how 
 to use the app. Below is an example of the code to run the app.
 
 ```{r, eval=FALSE}

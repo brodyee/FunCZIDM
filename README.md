@@ -4,8 +4,8 @@ This package contains the sampler associated with the "A Bayesian Functional
 Concurrent Zero-Inflated Dirichlet-Multinomial Regression Model with Application
 to Infant Microbiome" paper. The package also contains the code to reproduce the
 simulations and case study, along with a vignette that walks through how to use 
-the package. Lastly, there is an associated `shiny` app downloadable 
-[here](willBeHere).
+the package. Lastly, there is a `shiny` app downloadable that can be used to 
+easily generate plots.
 
 The layout of this package is as follows:
 
@@ -23,6 +23,7 @@ The layout of this package is as follows:
     an HPC cluster.
   - `notebooks` contains the .ipynb files to preprocess the data and obtain the
     simulation results.
+  - `app` contains the code for the visualization shiny app.
 
 All other files/folders were made automatically and have minimal additions by 
 us.
@@ -38,8 +39,8 @@ If you have access to an HPC cluster with SLURM, the steps to reproduce are as
 follows:
 
 1) Run `Rscript -e "cat(system.file('slurm', package = 'FunCZIDM'))"` to recover
-   the path to the `slurm` folder, and copy all the scripts into the folder you 
-   want your results.
+   the path to the `slurm` folder, and copy all the scripts into the folder where 
+   you want your results.
 2) Fill in the user information for `slurm` in the `.sh` files: email="", ...
 3) Run the `.sh`, for example:
    `./simulations.sh`
@@ -78,27 +79,27 @@ Rscript "$TRACE"
 Rscript "$COMBINE"
 ```
 
-If using a windows machine, either using WSL or Git Bash will allow for this 
+If using a Windows machine, either using WSL or Git Bash will allow for this 
 script to run. There are other options for running multiple R processes 
 simultaneously, though they may result in differing results due to the random
 number generation.
 
-### `conda` Enviroment for `shiny` App
+### `conda` Environment for `shiny` App
 
-While it is not required to make an `conda` enviroment, we recommend it to 
+While it is not required to make an `conda` environment, we recommend it to 
 reduce multiple installs when running directly from `reticulate`. Also, errors
-with package installs are easier to sort out within an enviroment than from 
-`reticulate`. Below are the steps to set up the enviroment.
+with package installs are easier to sort out within an environment than from 
+`reticulate`. Below are the steps to set up the environment.
 
 #### Installing `conda`
 
 If you do not currently have conda installed, you can install it locally 
-[here](https://www.anaconda.com/download/success). Choose the appropiate file 
+[here](https://www.anaconda.com/download/success). Choose the appropriate file 
 under Miniconda Installers, and click on it after installing.
 
-#### Creating the Enviroment for the `shiny` app
+#### Creating the Environment for the `shiny` app
 
-The everything nessicary for the `shiny` app python enviorment is contained in
+Everything necessary for the `shiny` app python enviorment is contained in
 `inst/app/environment.yml`. One can download it from GitHub or find it locally 
 after installing the package with the following line in R:
 
@@ -106,13 +107,13 @@ after installing the package with the following line in R:
 system.file('app', 'environment.yml', package='FunCZIDM')
 ```
 
-Once moving the file to the working directory, you can create the conda 
-enviroment with the following:
+Once you move the file to the working directory, you can create the conda 
+environment with the following:
 
 ```
 conda env create -f environment.yml
 ```
 
 This will create the `shinyPy` environment used in the shiny app. The app 
-will automatically activate the enviorment, so there is no need to activate it 
+will automatically activate the environment, so there is no need to activate it 
 after creating it.

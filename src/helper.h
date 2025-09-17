@@ -30,7 +30,7 @@ sp_mat makeBlockMat(const mat& X, const uvec& RAND_EFF_COLS,
   sp_mat blockMat(NUM_OBS, NUM_RE_COEF);
 
   startIdx = 0;
-  for (auto id = 0; id < ID_END_IDX.n_elem; id++) {
+  for (int id = 0; id < ID_END_IDX.n_elem; id++) {
     endIdx = ID_END_IDX[id];
     startCol = id*NUM_RE_PER_ID;
     endCol = startCol + NUM_RE_PER_ID - 1;
@@ -610,7 +610,7 @@ arma::cube getFit(const arma::cube& beta, const arma::mat& basis,
 
   int startIdx = 0;
   int endIdx = NUM_DF - 1; // intercept is always varying, so this is endIdx
-  for (auto cov = 0; cov < covariates.n_elem; cov++) {
+  for (int cov = 0; cov < covariates.n_elem; cov++) {
     if (covIdxs[startIdx] != covIdxs[endIdx]) {
       endIdx = startIdx; // cov not varying, so endIdx is startIdx
       Xtv.cols(startIdx, endIdx) = ones*covariates[cov];
@@ -672,7 +672,7 @@ arma::cube getFitOfData2(const arma::cube& beta, const arma::mat& basis,
 
   int startIdx = 0;
   int endIdx = NUM_DF - 1; // intercept is always varying, so this is endIdx
-  for (auto cov = 0; cov < covariates.n_cols; cov++) {
+  for (int cov = 0; cov < covariates.n_cols; cov++) {
     if (covIdxs[startIdx] != covIdxs[endIdx]) {
       endIdx = startIdx; // cov not varying, so endIdx is startIdx
       Xtv.cols(startIdx, endIdx) = ones%covariates.col(cov);
@@ -708,7 +708,7 @@ arma::cube getRAFits(const arma::cube& beta, const arma::mat& basis,
 
   int startIdx = 0;
   int endIdx = NUM_DF - 1;
-  for (auto cov = 0; cov < covariates.n_elem; cov++) {
+  for (int cov = 0; cov < covariates.n_elem; cov++) {
     if (covIdxs[startIdx] != covIdxs[endIdx]) {
       endIdx = startIdx; // cov not varying, so endIdx is startIdx
       Xtv.cols(startIdx, endIdx) = ones*covariates[cov];
@@ -779,7 +779,7 @@ arma::mat getHillDiversity(const arma::cube& beta, const arma::mat& basis,
   
   int startIdx = 0;
   int endIdx = NUM_DF - 1;
-  for (auto cov = 0; cov < covariates.n_elem; cov++) {
+  for (int cov = 0; cov < covariates.n_elem; cov++) {
     if (covIdxs[startIdx] != covIdxs[endIdx]) {
       endIdx = startIdx; // cov not varying, so endIdx is startIdx
       Xtv.cols(startIdx, endIdx) = ones*covariates[cov];
