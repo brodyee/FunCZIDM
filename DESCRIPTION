@@ -2,7 +2,15 @@ Package: FunCZIDM
 Title: Functional Concurrent Zero-Inflated Dirichlet Multinomial Regression
 Version: 0.1.0
 Authors@R: 
-    person("Brody", "Erlandson", , "erlandsonbrody@gmail.com", role = c("aut", "cre"))
+    c(
+      person("Brody", "Erlandson", , "erlandsonbrody@gmail.com", 
+             role = c("aut", "cre"), 
+             comment = c(ORCID = "0009-0001-0545-3880")),
+      person("Ander", "Wilson", "Ander.Wilson@colostate.edu", role = "aut",
+             comment = c(ORCID = "0000-0003-4774-3883")),
+      person("Matt", "Koslovsky", "Matt.Koslovsky@colostate.edu", role = "aut", 
+             comment = c(ORCID = "0000-0001-5144-2042"))
+    )
 Description: This package contains functions to sample from FunC-ZIDM regression model, and has the nessicary functions to process the samples.
 License: `use_mit_license()`
 Encoding: UTF-8
@@ -18,5 +26,6 @@ Maintainer: Brody Erlandson <erlandsonbrody@gmail.com>
 Depends: R (>= 3.5.0)
 Suggests: 
     knitr,
-    rmarkdown
+    rmarkdown,
+    ggtern
 VignetteBuilder: knitr

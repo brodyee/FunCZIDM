@@ -28,7 +28,19 @@ The layout of this package is as follows:
 All other files/folders were made automatically and have minimal additions by 
 us.
 
-### Reproducing the Results
+## Installation
+
+You can install the development version from GitHub:
+
+```
+# install.packages("remotes")
+remotes::install_github("brodyee/FunCZIDM", build_vignettes = FALSE)
+# Optional: for the vignette and ternary plots
+# install.packages("ggtern")
+# remotes::install_github("brodyee/FunCZIDM", build_vignettes = TRUE)
+```
+
+## Reproducing the Results
 
 We prioritize minimal steps to reproduce our results. We strongly recommend 
 reproducing the simulation results with an HPC cluster, as it is very 
@@ -84,7 +96,7 @@ script to run. There are other options for running multiple R processes
 simultaneously, though they may result in differing results due to the random
 number generation.
 
-### `conda` Environment for `shiny` App
+## `conda` Environment for `shiny` App
 
 While it is not required to make an `conda` environment, we recommend it to 
 reduce multiple installs when running directly from `reticulate`. Also, errors

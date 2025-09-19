@@ -185,3 +185,51 @@ continuous covariate. If a covariate is a factor, then "no c/s" is stored.
 This function is used to sample from the FunC-ZIDM regression
 model.
 }
+\examples{
+\dontrun{
+# toy example with included data
+library(FunCZIDM)
+
+data(infantData)
+# Convert the categorical variables to factors
+infantCovariates$gender <- as.factor(infantCovariates$gender)
+infantCovariates$mode.of.birth <- as.factor(infantCovariates$mode.of.birth)
+infantCovariates$Room.category <- as.factor(infantCovariates$Room.category)
+infantCovariates$milk <- as.factor(infantCovariates$milk)
+infantCovariates$milk <- relevel(infantCovariates$milk, ref="< 10\%")
+infantCovariates$Period.of.study <- as.factor(infantCovariates$Period.of.study)
+infantCovariates$Period.of.study <- relevel(infantCovariates$Period.of.study,
+                                            ref="before")
+
+# getting the index of the subject id's and the time-varying variable
+idIdx <- which(colnames(infantCovariates) == "Subject")
+timeIdx <- which(colnames(infantCovariates) == "Day.of.life.sample.obtained")
+# extracting the subject ids and tv variable
+ids <- infantCovariates[, idIdx]
+time <- infantCovariates[, timeIdx]
+infantCovariates <- infantCovariates[, -c(idIdx, timeIdx), drop = FALSE]
+
+idIdx <- which(colnames(infantCounts) == "Subject")
+timeIdx <- which(colnames(infantCounts) == "Day.of.life.sample.obtained")
+infantCounts <- infantCounts[, -c(idIdx, timeIdx), drop = FALSE]
+infantCounts <- as.matrix(infantCounts)
+
+output <- FunCZIDM(counts=infantCounts, 
+                   covariates=infantCovariates, 
+                   ids=ids,
+                   varyingCov=time,
+                   iter=85,
+                   burnIn=75,
+                   thin=10,
+                   covWithoutVC=c(which(grepl("Period", colnames(infantCovariates)))),
+                   saveToFile=FALSE,
+                   saveNullInBetaCI=FALSE)
+}
+}
+\seealso{
+\code{\link{calcRA}},
+\code{\link{calcDeltaRA}},
+\code{\link{calcAlphaDiv}},
+\code{\link{calcDeltaAlphaDiv}},
+\code{\link[=FunCZIDM-package]{FunCZIDM-package}}
+}

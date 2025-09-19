@@ -2,14 +2,26 @@
 % Please edit documentation in R/FunCZIDM-package.R
 \docType{package}
 \name{FunCZIDM-package}
-\alias{FunCZIDM}
 \alias{FunCZIDM-package}
-\title{FunCZIDM: Functional Concurrent Zero-Inflated Dirichlet Multinomial Regression}
+\title{FunCZIDM: Functional Concurrent Zero-Inflated Dirichlet-Multinomial Regression}
 \description{
-This package contains functions to sample from FunC-ZIDM regression model, and has the nessicary functions to process the samples.
+Implements MCMC for the FunC-ZIDM model and helpers for simulation,
+fitting, and visualization.
 }
-\author{
-\strong{Maintainer}: Brody Erlandson \email{erlandsonbrody@gmail.com}
+\details{
+\subsection{Getting started}{
+\itemize{
+\item Install: see \code{README} (GitHub link below).
+\item Main function: \code{?FunCZIDM}.
+\item Vignette: see \code{vignette("FunCZIDMIntro")} (optional, requires \code{ggtern}), or view online at https://brodyee.github.io/
+\item Full index: \code{help(package = "FunCZIDM")}
+}
+}
 
+\subsection{Links}{
+\itemize{
+\item GitHub: https://github.com/brodyee/FunCZIDM
+}
+}
 }
 \keyword{internal}
