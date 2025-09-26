@@ -6,7 +6,7 @@
 #' ## Getting started
 #' - Install: see `README` (GitHub link below).
 #' - Main function: `?FunCZIDM`. 
-#' - Vignette: see `vignette("FunCZIDMIntro")` (optional, requires `ggtern`), or view online at https://brodyee.github.io/
+#' - Vignette: see `vignette("FunCZIDMIntro")` (optional, install `ggtern`), or view online at https://brodyee.github.io/packageVignette/FunCZIDMIntro.html
 #' - Full index: `help(package = "FunCZIDM")`
 #'
 #' ## Links
