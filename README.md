@@ -28,6 +28,14 @@ The layout of this package is as follows:
 All other files/folders were made automatically and have minimal additions by 
 us.
 
+## Vignette (User Guide)
+
+The "Getting Started with FunCZIDM" vignette is hosted 
+[here](https://brodyee.github.io/packageVignette/FunCZIDMIntro.html). One can
+build it locally; however, `ggtern` is needed to build all the plots. Note, 
+`ggtern` is not required to build, as these sections will not evaluate if not 
+installed.
+
 ## Installation
 
 You can install the development version from GitHub:
