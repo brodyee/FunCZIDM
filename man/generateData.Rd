@@ -4,7 +4,14 @@
 \alias{generateData}
 \title{Generate Data}
 \usage{
-generateData(n, c, p, totalCountRange = c(100, 200), numActive = 4)
+generateData(
+  n,
+  c,
+  p,
+  totalCountRange = c(100, 200),
+  numActive = 4,
+  negativeMultinomial = FALSE
+)
 }
 \arguments{
 \item{n}{(integer) Number of individuals.}

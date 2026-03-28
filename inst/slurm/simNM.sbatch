@@ -28,5 +28,4 @@ SCRIPT=$(Rscript -e "cat(system.file('scripts', 'simulationStudy.R', package = \
                                      'FunCZIDM'))")
 Rscript "$SCRIPT" --seed $SEED -n 50 -c $C -p 10 -i 10000 -b 5000 -l $L \
                   -h $H --propSigma .1 --thin 5 --kappaShape 100 \
-                  --kappaRate 900 --noZI "$NOZI" --noRE "$NORE" \
-                  --noZIRE "$NOZIRE"
+                  --kappaRate 900 --NMDist true

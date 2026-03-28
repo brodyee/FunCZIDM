@@ -33,7 +33,7 @@ source("helpers.R")
 source_python("plotFunctions.py")
 
 # Load a default output
-defaultData <- readRDS(system.file("extdata", "caseStudySamples.rds",
+defaultData <- readRDS(system.file("extdata", "plotCaseStudySamples.rds",
                                     package = "FunCZIDM"))
 
 ui <- fluidPage(

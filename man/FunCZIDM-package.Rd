@@ -13,7 +13,7 @@ fitting, and visualization.
 \itemize{
 \item Install: see \code{README} (GitHub link below).
 \item Main function: \code{?FunCZIDM}.
-\item Vignette: see \code{vignette("FunCZIDMIntro")} (optional, requires \code{ggtern}), or view online at https://brodyee.github.io/
+\item Vignette: see \code{vignette("FunCZIDMIntro")} (optional, install \code{ggtern}), or view online at https://brodyee.github.io/packageVignette/FunCZIDMIntro.html
 \item Full index: \code{help(package = "FunCZIDM")}
 }
 }

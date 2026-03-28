@@ -3,9 +3,8 @@
 # This file contains the helper functions for the wrapper functions in
 # FunCZIDM.R. 
 
-
 getBasisX <- function(X, varyingCov, covWithVC, df = 4, degree=3,
-                      basisFunc=bs) {
+                      basisFunc=bs, evenSpacing=FALSE) {
   # Adds nessary columns to X to include varying coefficients. That is,
   # the basis functions of the varying variable element-wise multiplied by each 
   # column of X seperately. This allows for a linear fit of X with coefficients,
@@ -16,7 +15,14 @@ getBasisX <- function(X, varyingCov, covWithVC, df = 4, degree=3,
   # covWithVC: vector of column numbers of X that will have varying coefficients
 
   # Basis functions for varying coefficients
-  basis <- basisFunc(varyingCov, df=df, intercept=FALSE)
+  if (evenSpacing) {
+    knots <- seq(min(varyingCov), max(varyingCov), length.out = df - degree + 2)
+    basis <- basisFunc(varyingCov, df=df, intercept=FALSE, 
+                       knots=knots[-c(1, length(knots))],
+                       Boundary.knots=c(min(varyingCov), max(varyingCov)))
+  } else {
+    basis <- basisFunc(varyingCov, df=df, intercept=FALSE)
+  }
   interiorKnots <- attr(basis, "knots")
   boundaryKnots <- attr(basis, "Boundary.knots")
   basis <- cbind(1, basis)
@@ -46,7 +52,8 @@ getBasisX <- function(X, varyingCov, covWithVC, df = 4, degree=3,
 
 getNullInBetaCIProportion <- function(output, XvartoXColMapping, colMapping,
                                       varyingCov, catNames, interiorKnots, 
-                                      boundaryKnots, basisFunc=splines::bs, 
+                                      boundaryKnots, 
+                                      basisFunc=splines::bs, 
                                       df=4, fileName = "") {
   # Extracts the null in CI statistics from the output of FunCZIDM
   # output: output of FunCZIDM
@@ -105,7 +112,7 @@ getNullInBetaCIProportion <- function(output, XvartoXColMapping, colMapping,
 
 errorChecksFunCZIDM <- function(counts, covariates, ids, varyingCov, 
                                 iter, burnIn, thin, adjustFreq,
-                                ZIGrouped, returnBurnIn, printProgress, 
+                                returnBurnIn, printProgress, 
                                 toReturn, betaInitial, rInitial, priors, 
                                 proposalVars, covWithoutVC, df, degree, basisFunc, 
                                 saveToFile, fileName, saveNullInBetaCI, 
@@ -127,7 +134,7 @@ errorChecksFunCZIDM <- function(counts, covariates, ids, varyingCov,
     checkSingleNumeric(get(name), name)
   }
 
-  bool <- c("ZIGrouped", "returnBurnIn", "printProgress", "saveToFile", 
+  bool <- c("returnBurnIn", "printProgress", "saveToFile", 
             "saveNullInBetaCI")
   for (name in bool) {
     checkTrueOrFalse(get(name), name)
@@ -173,7 +180,8 @@ errorChecksFunCZIDM <- function(counts, covariates, ids, varyingCov,
                                          "alpha" = "non-negative",
                                          "beta" = "non-negative",
                                          "kappaShape" = "non-negative",
-                                         "kappaRate" = "non-negative"),
+                                         "kappaRate" = "non-negative",
+                                         "globalParam" = "non-negative"),
                             "priors")
   }
   if (!is.null(proposalVars)) {

@@ -15,17 +15,14 @@ using namespace Rcpp;
 using namespace arma; 
 
 //[[Rcpp::export]]
-List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X, 
+List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, arma::mat X, 
                      const arma::uvec ID_END_IDX,
                      const arma::uvec RAND_EFF_COLS,
                      const int BURN_IN = 0,
                      const int NUM_THIN = 1,
                      const int ADJ_FREQ = 250,
-                     const double PROPOSAL_CAP = 0.0, // no capping
-                     const bool ZI_GROUPED = true,
                      const bool ADJ_PROPOSALS = true,
                      const bool RETURN_BURN_IN = false,
-                     const bool CAP_PROPOSALS = false,
                      const bool PRINT_PROGRESS = true,
                      const Rcpp::CharacterVector TO_RETRUN 
                                                       = Rcpp::CharacterVector(),
@@ -47,6 +44,20 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
   const List PRIORS = (priors.isNotNull()) ? as<List>(priors) : List();
   const List PROPOSAL_VARS = (proposalVars.isNotNull()) ? as<List>(proposalVars)
                                                         : List();
+  umat ALL_OBS_COUNTS_ZERO(ID_END_IDX.n_elem, NUM_CAT);
+
+  unsigned int startIdx, endIdx;
+  for (int cat = 0; cat < NUM_CAT; cat++) {
+    startIdx = 0;
+    for (int subj = 0; subj < ID_END_IDX.n_elem; subj++) {
+      endIdx = ID_END_IDX[subj];
+
+      ALL_OBS_COUNTS_ZERO.at(subj, cat) = 
+                     COUNTS.col(cat).subvec(startIdx, endIdx).is_zero() ? 1 : 0;
+      startIdx = endIdx + 1;
+    }
+  }
+  const uvec zDot = arma::sum(COUNTS, 1);
   
   // ---- Saving Samples setup ----
   const int numSamples = RETURN_BURN_IN ? ITER/NUM_THIN :
@@ -95,13 +106,16 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
          etaAlpha = .01,
          etaBeta = 10.,
          kappaShape = 100.,
-         kappaRate = 900.;
+         kappaRate = 900.,
+         A = 1.0;
   if (PRIORS.containsElementNamed("first beta sd"))
     firstBetaSD = as<double>(PRIORS["first beta sd"]);
   if (PRIORS.containsElementNamed("kappaShape"))
     kappaShape = as<double>(PRIORS["kappaShape"]); 
   if (PRIORS.containsElementNamed("kappaRate"))
-    kappaRate = as<double>(PRIORS["kappaRate"]); 
+    kappaRate = as<double>(PRIORS["kappaRate"]);
+  if (PRIORS.containsElementNamed("globalParam"))
+    A = as<double>(PRIORS["globalParam"]);
   // the individual and taxon specific covariate variance (phi) hyperparameters
   if (PRIORS.containsElementNamed("a"))
     phiShape = as<double>(PRIORS["a"]);
@@ -166,31 +180,24 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
   int s = 0,
       printFreq = std::ceil(ITER/20.);
   for (int i = 0; i < ITER; i++) {
-    if (!ZI_GROUPED)
-      sampleEta(eta, c, gamma, COUNTS, etaAlpha, etaBeta);
-    else
-      sampleEtaGrouped(eta, c, gamma, COUNTS, ID_END_IDX, etaAlpha, etaBeta);
+    sampleEta(eta, c, gamma, COUNTS, ALL_OBS_COUNTS_ZERO, zDot, ID_END_IDX, 
+              etaAlpha, etaBeta);
     sampleC(c, COUNTS, u, gamma, eta);
     sampleU(u, c, COUNTS);
     sampleBeta(beta, X, c, kappa, tau, lambda, gamma, betaAcceptProp, 
                betaProposalSD, betaAcceptCount, eta, firstBetaSD);
     sampleKappa(kappa, beta, kappaShape, kappaRate);
-    if (!ZI_GROUPED)
-      sampleR(r, Y, c, phi, gamma, NUM_RE_PER_ID, ID_END_IDX, rAcceptProp,
-             rProposalSD, eta);
-    else
-      sampleRGrouped(r, Y, c, phi, gamma, NUM_RE_PER_ID, ID_END_IDX,
-                     rAcceptProp, rProposalSD, eta);
+    sampleR(r, Y, c, phi, gamma, NUM_RE_PER_ID, ID_END_IDX, rAcceptProp, 
+                   rProposalSD, eta);
     samplePhi(phi, r, NUM_RE_PER_ID, phiShape, phiRate);
     sampleLambda(lambda, beta, nu, tau);
     sampleNu(nu, lambda);
     sampleTau(tau, beta, lambda, xi);
-    sampleXi(xi, tau);
+    sampleXi(xi, tau, A);
     
     // Adjusting proposal variances
     if (ADJ_PROPOSALS && (i + 1) % ADJ_FREQ == 0 && i < BURN_IN)
-      adjustProposalVars(betaProposalSD, betaAcceptCount, ADJ_FREQ,
-                         CAP_PROPOSALS, PROPOSAL_CAP);
+      adjustProposalVars(betaProposalSD, betaAcceptCount, ADJ_FREQ);
     
     // Saving
     if (i == BURN_IN - 1) {
@@ -224,8 +231,7 @@ List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
   betaAcceptProp /= (ITER - BURN_IN); rAcceptProp /= (ITER - BURN_IN);
   etaMeanPropZeros /= numSamples; rMeans /= numSamples;
 
-
-  List output = List::create(Named("beta") = (cube) betaSamples,
+  List output = List::create(Named("beta") = (cube) betaSamples, 
                              Named("betaAcceptProp") = betaAcceptProp,
                              Named("rAcceptProp") = rAcceptProp,
                              Named("rMeans") = rMeans,

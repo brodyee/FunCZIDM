@@ -22,17 +22,21 @@ VignetteBuilder: knitr
 hasggtern <- requireNamespace("ggtern", quietly = TRUE)
 knitr::opts_chunk$set(fig.width = 7, fig.height = 5,
                       dpi = 96, out.width = "100%")
+if (hasggtern) {
+  library(ggtern)
+}
 ```
 
 # Introduction
 
 In this vignette, we walk through how to use the `FunCZIDM` package and the 
 shiny app. We use the case study data in the paper "A Bayesian Functional 
-Concurrent Zero-Inflated Dirichlet Multinomial Regression Model" to provide examples
+Concurrent Zero-Inflated Dirichlet-Multinomial Regression Model with Application
+ to Infant Microbiome" to provide examples
 of how you would use and gain inference from the model. This package contains 
-the data from the case study and the samples from the case study used in the paper.
-Along with the scripts used to run the model and simulations from the paper. 
-More details on reproducing the results in the paper can be found in the 
+the data from the case study and the samples from the case study used in the 
+paper, along with the scripts used to run the model and simulations. More 
+details on reproducing the results in the paper can be found in the 
 `README.md` file in the packages root directory.
 
 # Data Set Up 
@@ -58,8 +62,8 @@ datasets are aligned by checking the subject id's and times are aligned.
 
 The `FunCZIDM` function requires the categorical covariates to be factors, and 
 will use the reference level as the reference category for the variable. Below,
-we convert the categorical variables to factors and ensure the reference 
-level is the one we want.
+we convert the categorical variables to factors and ensure the reference level 
+matches that used in the case study of the main manuscript.
 
 ```{r}
 # Convert the categorical variables to factors
@@ -102,30 +106,31 @@ infantCounts <- infantCounts[, -c(idIdx, timeIdx), drop = FALSE]
 infantCounts <- as.matrix(infantCounts)
 ```
 
-Now we can double check the data is set up correctly. 
+Now we can double check the data are set up correctly. Note the counts data must
+be a matrix, and the covariates data frame should only contain the covariates. 
 
 ```{r}
 str(infantCovariates)
 ```
 
 ```{r}
-if (is.matrix(infantCounts)) {
-  print("Counts data is a matrix.")
-} 
+is.matrix(infantCounts)
 
 colnames(infantCounts)
 ```
 
+The `infantCounts` data contains the counts of the class level using 16S rRNA 
+genes from infant stool samples.
+
 # Running the Model
 
 Once the data are set up, one can sample from the FunC-ZIDM model using the 
-`FunCZIDM` function. The first four inputs are what we prepared in the previous  
+`FunCZIDM` function. The first four inputs are what we prepared in the previous
 section. Next, we specify the number of total iterations (`iter`), 
 the burn-in iterations (`burnIn`),
-and how much to thin by (`thin`). To allow for efficient knitting, we only do 85 
-iterations with a 75 burn-in while thinning to every 10th iteration. If you 
-need to assess convergence, you can return the burn-in samples by setting 
-`returnBurnIn=TRUE`. 
+and how much to thin by (`thin`). For demonstration purposes, we only do 85 
+iterations with a 75 burn-in while thinning to every 10th iteration. To assess 
+convergence, you can return the burn-in samples by setting `returnBurnIn=TRUE`. 
 
 By default, the function will return the $\beta_{jpd}^*$ samples, $r_{jp}$ 
 means, the acceptance rates for the $\beta_{jpd}^*$ and $r_{jp}$ after 
@@ -145,14 +150,15 @@ the splines (`degree`), and the basis function to use (`basisFunc`). The default
 values (4, 3, and `splines::bs`) are the ones used in the case study and 
 simulations of the paper.
 
-If there are covariates that are assumed not to have a time-varying effect, one 
+If there are covariates that are assumed to not have a time-varying effect, one 
 can specify the indices of these covariates in the `covWithoutVC` argument. In 
-the case study, we assume the period of study to be time-invariant.
+the case study, we assume the period of study to be time-invariant. By default,
+all covariates have a time-varying effect.
 
 Lastly, one can save the output to a file using the `saveToFile` argument. If 
 `TRUE`, the output will be saved to a file with the name specified by `fileName`
-or "output.rds" by default. This is useful when running multiple chains to be 
-able to combine after all chains have finished sampling. One can also save a csv
+or "output.rds" by default. This is useful when running multiple chains in order
+to combine them after all chains have finished running. One can also save a csv
 file indicating the proportion of mean $\beta_{jp}(t)$ functions that have the null 
 function in the 95% credible interval using the `saveNullInBetaCI` argument.
 This saves to a file named "nullInBetaCI.csv" by default. This can be useful to
@@ -210,7 +216,7 @@ The package includes the combined output from the case study in the paper under
 output for the inference section. We load the combined output below.
 
 ```{r}
-combinedOutput <- readRDS(system.file("extdata", "caseStudySamples.rds",
+combinedOutput <- readRDS(system.file("extdata", "plotCaseStudySamples.rds",
                           package = "FunCZIDM"))
 names(combinedOutput)
 ```
@@ -224,15 +230,15 @@ of each variable in the reference manual.
 
 We demonstrate how to use the functions to obtain inference from the samples 
 using the preloaded samples. The package can calculate the 
-relative abundance ($\text{RA}_j(t)$) and $\alpha$-diversity functions 
-($\alpha(t)$), the multiplicative change in relative abundance 
-($\Delta_v \text{RA}_{jp}(t)$) and $\alpha$-diversity functions 
-($\Delta_v \alpha_p(t)$), and the functional coefficients ($\beta_{jp}(t)$).
+relative abundance $(\text{RA}_j(t))$ and $\alpha$-diversity functions 
+$(\alpha(t))$, the multiplicative difference in relative abundance 
+$(\Delta_v \text{RA}_{jp}(t))$ and $\alpha$-diversity functions 
+$(\Delta_v \alpha_p(t))$, and the functional coefficients $(\beta_{jp}(t))$.
 
-We can begin by looking at the proportion of the credible interval of
-$\beta_{jp}(t)$ that contains the null function. By looking at the lowest 
-proportions, we can narrow down which covariates and categories to look into. 
-allowing for easier exploration of the $\alpha$-diversity and relative 
+We begin by looking at the proportion of the credible interval of
+$\beta_{jp}(t)$ that contains the null function. By identifying the lowest 
+proportions, we can narrow down which covariates and categories to investigate 
+further, allowing for easier exploration of the $\alpha$-diversity and relative 
 abundance.
 
 ```{r, warning=FALSE}
@@ -248,13 +254,13 @@ As we did in the paper, we will focus on the gestational age at birth and
 the breast milk proportion in the diet covariates. We can see the top 3 
 category and covariate combinations are the only ones that do not contain the 
 null function for the entire time period. This doesn't mean the other covariates
-multiplicative changes credible intervals do not contain the null function, but 
-these variables are a good starting point for exploration unless there is 
-interest in particular covariates.
+multiplicative differences credible intervals do not contain the null function. 
+Unless there is interest in particular covariates, the top variables are a good 
+starting point for exploration.
 
 ## Relative Abundance
 
-The relative abundance and multiplicative change in relative abundance can be
+The relative abundance and multiplicative difference in relative abundance can be
 calculated using the `calcRA` and `calcDeltaRA` functions, respectively. First,
 we need to note the index of each covariate in the model:
 
@@ -278,7 +284,7 @@ dim(RA)
 ```
 
 We get all the categories 
-relative abundance samples. Where we have `r dim(RA)[1]` timepoints, 
+relative abundance samples, where we have `r dim(RA)[1]` timepoints, 
 `r dim(RA)[2]` categories, and `r dim(RA)[3]` samples. With these samples, we 
 can visualize the mean relative abundance over time for the taxa. Below, we 
 provide an example of plotting the mean relative abundance over time for 
@@ -289,14 +295,16 @@ taxa <- c("Bacilli", "Clostridia", "Gammaproteobacteria")
 times <- rownames(RA) <= 50
 RAMeans <- apply(RA[times, taxa, ], c(1, 2), mean)
 x <- rownames(RAMeans)
-plot(x, RAMeans[, taxa[1]], ylim=c(0, 1), type="l")
+plot(x, RAMeans[, taxa[1]], ylim=c(0, 1), type="l", 
+     ylab="Mean Relative Abundance",
+     xlab="Day of Life")
 lines(x, RAMeans[, taxa[2]], col="red")
 lines(x, RAMeans[, taxa[3]], col="blue")
 legend("topright", taxa, col=c("black", "red", "blue"), lty=1)
 ```
 
 We can also view the distribution of the relative abundance at a particular 
-time.
+time. We choose the 77th index, which is around day 25 of life.
 
 ```{r}
 print(paste("Time point", rownames(RA)[77]))
@@ -309,28 +317,29 @@ hist(RA[77, taxa[3], ], main=taxa[3], xlab="Relative Abundance",
      xlim=c(0, 1), breaks=20)
 ```
 
-With `ggtern`, we can view the distribution on the simplex. We must collapse 
-categories to have 3 categories total. Below we have the simplex of Bacilli, 
-Gammaproteobacteria, and the sum of all other relative abundances. We then plot
-the distribution of these three on the simplex at three different time points. 
-This gives us an idea of how the distribution shifts over time.
+With `ggtern`, we can view the distribution on the simplex. To plot it on a 
+2-simplex, we must collapse some categories to have 3 categories total. Below we
+have the simplex of Bacilli, Gammaproteobacteria, and the sum of all other 
+relative abundances. We then plot the distribution of these three on the simplex
+at three different time points. This gives us an idea of how the distribution 
+shifts over time.
 
 ```{r, eval=hasggtern}
-library(ggtern)
-
 # Getting the data at 3 different times and combining
-S10 <- as.data.frame(t(RA[10,,]))
-S10["sumOthers"] <- 1 - rowSums(S10[c("Bacilli", "Gammaproteobacteria")])
-S77 <- as.data.frame(t(RA[77,,]))
-S77["sumOthers"] <- 1 - rowSums(S77[c("Bacilli", "Gammaproteobacteria")])
-S150 <- as.data.frame(t(RA[150,,]))
-S150["sumOthers"] <- 1 - rowSums(S150[c("Bacilli", "Gammaproteobacteria")])
+S10 <- as.data.frame(t(RA[10,,])) # RA samples around day 4
+# sum of each sample's RA other than Bacilli and Gammaproteobacteria
+S10["Other"] <- 1 - rowSums(S10[c("Bacilli", "Gammaproteobacteria")]) 
+S77 <- as.data.frame(t(RA[77,,])) # RA samples around day 25
+S77["Other"] <- 1 - rowSums(S77[c("Bacilli", "Gammaproteobacteria")])
+S150 <- as.data.frame(t(RA[150,,])) # RA samples around day 47
+S150["Other"] <- 1 - rowSums(S150[c("Bacilli", "Gammaproteobacteria")])
+# getting the group labels
 S10$group <- paste("Day", round(as.numeric(rownames(RA)[10]), 2))
 S77$group <- paste("Day", round(as.numeric(rownames(RA)[77]), 2))
 S150$group <- paste("Day", round(as.numeric(rownames(RA)[150]), 2))
 S <- rbind(S10, S77, S150)
 
-ggtern(S, aes(sumOthers, Bacilli, Gammaproteobacteria, color = group)) +
+ggtern(S, aes(Other, Bacilli, Gammaproteobacteria, color = group)) +
   stat_density_tern(
     aes(fill = after_stat(level)),
     geom = "path", bins = 50,  alpha = 0.5
@@ -342,7 +351,7 @@ ggtern(S, aes(sumOthers, Bacilli, Gammaproteobacteria, color = group)) +
 ```
 
 Now that we have an idea of the relative abundance at baseline, we can look into
-the multiplicative change from these relative abundances. Using the same 
+the multiplicative difference from these relative abundances. Using the same 
 `covProfile` as before, we assign the covariates we want to see a change in 
 (`forCovs`) and the change of the covariates respectively (`change`). Then, we 
 assign categories that we want to the change in (`forCats`).  
@@ -376,31 +385,36 @@ deltaRAMeans <- apply(deltaRA[[1]][times,,], c(1, 2), mean)
 x <- rownames(deltaRAMeans)
 ylim <- c(min(deltaRAMeans) - 0.5, max(deltaRAMeans) + 0.5)
 
-plot(x, deltaRAMeans[, taxa[1]], ylim=ylim, type="l")
+plot(x, deltaRAMeans[, taxa[1]], ylim=ylim, type="l", 
+     ylab="Mean Multiplicative Difference in Relative Abundance",
+     xlab="Day of Life")
 lines(x, deltaRAMeans[, taxa[2]], col="red")
 lines(x, deltaRAMeans[, taxa[3]], col="blue")
 abline(h=1, lty=2)
 legend("topright", taxa, col=c("black", "red", "blue"), lty=1)
 ```
 
-Additionally, we can find the distribution of the multiplicative change at a
+Additionally, we can find the distribution of the multiplicative difference at a
 particular time.
 
 ```{r}
 print(paste("Time point", rownames(deltaRA[[1]])[77]))
 par(mfrow=c(3, 1))
-hist(deltaRA[[1]][77, taxa[1], ], main=taxa[1], xlab="Multiplicative Change", 
+hist(deltaRA[[1]][77, taxa[1], ], main=taxa[1], 
+     xlab="Multiplicative Difference in Relative Abundance", 
      xlim=ylim, breaks=20)
-hist(deltaRA[[1]][77, taxa[2], ], main=taxa[2], xlab="Multiplicative Change", 
+hist(deltaRA[[1]][77, taxa[2], ], main=taxa[2], 
+     xlab="Multiplicative Difference in Relative Abundance", 
      xlim=ylim, breaks=20)
-hist(deltaRA[[1]][77, taxa[3], ], main=taxa[3], xlab="Multiplicative Change", 
+hist(deltaRA[[1]][77, taxa[3], ], main=taxa[3], 
+     xlab="Multiplicative Difference in Relative Abundance", 
      xlim=ylim, breaks=20)
 ```
 
-One may want to see what proportion of the multiplicative change credible 
-interval contains the null effect (1). This can be done using the samples to 
+One may want to see what proportion of the multiplicative difference credible 
+interval contains the null effect. This can be done using the samples to 
 estimate the credible interval. By leaving `forCats` NULL, we get all the 
-categories multiplicative change.
+categories multiplicative difference.
 
 ```{r}
 # calculate the change in relative abundance for all cats
@@ -412,7 +426,7 @@ deltaRA <- calcDeltaRA(combinedOutput, change, forCovs, covProfile=covProfile)
 lowerCI <- apply(deltaRA[[1]][times,,], c(1, 2), quantile, probs=c(.025))
 upperCI <- apply(deltaRA[[1]][times,,], c(1, 2), quantile, probs=c(.975))
 
-oneInCI <- (lowerCI <= 1)*(upperCI >= 1)
+oneInCI <- (lowerCI <= 1)*(upperCI >= 1) # Null effect is 1
 colMeans(oneInCI)
 ```
 
@@ -421,7 +435,7 @@ time period, whereas the $\beta_{jp}(t)$ credible intervals do contain the
 null effect over the whole time period (with the exception of Gammaproteobacteria).
 Additionally, this is only for a 2 week increase in gestational age from 27 
 weeks of gestational age at birth. With the associated shiny app, one can easily
-plot the mean multiplicative change over a range of changes. 
+plot the mean multiplicative difference over a range of changes. 
 
 Now we can look at the change of the simplex distribution of Gammaproteobacteria,
 Clostridia, and the sum of the others when changing gestational age.
@@ -431,22 +445,22 @@ Clostridia, and the sum of the others when changing gestational age.
 covProfile <- c(1, 27, 0, 0, 0, 0, 0, 0, .3)
 RA <- calcRA(combinedOutput, covProfile=covProfile)
 S27 <- as.data.frame(t(RA[85,,]))
-S27["sumOthers"] <- 1 - rowSums(S27[c("Clostridia", "Gammaproteobacteria")])
+S27["Other"] <- 1 - rowSums(S27[c("Clostridia", "Gammaproteobacteria")])
 covProfile <- c(1, 30, 0, 0, 0, 0, 0, 0, .3)
 RA <- calcRA(combinedOutput, covProfile=covProfile)
 S30 <- as.data.frame(t(RA[85,,]))
-S30["sumOthers"] <- 1 - rowSums(S30[c("Clostridia", "Gammaproteobacteria")])
+S30["Other"] <- 1 - rowSums(S30[c("Clostridia", "Gammaproteobacteria")])
 covProfile <- c(1, 33, 0, 0, 0, 0, 0, 0, .3)
 RA <- calcRA(combinedOutput, covProfile=covProfile)
 S33 <- as.data.frame(t(RA[85,,]))
-S33["sumOthers"] <- 1 - rowSums(S33[c("Clostridia", "Gammaproteobacteria")])
+S33["Other"] <- 1 - rowSums(S33[c("Clostridia", "Gammaproteobacteria")])
 S27$group <- paste("GA of", 27)
 S30$group <- paste("GA of", 30)
 S33$group <- paste("GA of", 33)
-cols <- c("Clostridia", "Gammaproteobacteria", "sumOthers", "group")
+cols <- c("Clostridia", "Gammaproteobacteria", "Other", "group")
 S <- rbind(S27[,cols], S30[,cols], S33[,cols])
 
-ggtern(S, aes(sumOthers, Clostridia, Gammaproteobacteria, color = group)) +
+ggtern(S, aes(Other, Clostridia, Gammaproteobacteria, color = group)) +
   stat_density_tern(
     aes(fill = after_stat(level)),
     geom = "path", bins = 50, alpha = 0.5
@@ -454,15 +468,18 @@ ggtern(S, aes(sumOthers, Clostridia, Gammaproteobacteria, color = group)) +
   scale_T_continuous(labels = seq(0, 1, 0.2), limits = c(0,1)) +
   scale_L_continuous(labels = seq(0, 1, 0.2), limits = c(0,1)) +
   scale_R_continuous(labels = seq(0, 1, 0.2), limits = c(0,1)) +
-  theme_bw()
+  theme_bw() +
+  guides(color = guide_legend(reverse = TRUE))
 ```
 
 ## $\alpha$-diversity
 
-This works similarly to the relative abundance functions. Using the same 
-covariate profile, we can find the diversity over time using `calcAlphaDiv`.
-We have one extra parameter to set than `calcRA`, this is `l`, which controls 
-the weight given toward the smaller categories. 
+The functions to get the $\alpha$-diversity functions 
+$(\alpha(t))$, the multiplicative difference in $\alpha$-diversity functions 
+$(\Delta_v \alpha_p(t))$ work similarly to the relative abundance functions. 
+Using the same covariate profile, we can find the diversity over time using 
+`calcAlphaDiv`. We have one extra parameter to set than `calcRA`, `l`, 
+that controls the weight given toward the smaller categories. 
 
 ```{r}
 covProfile <- c(1, 27, 0, 0, 0, 0, 0, 0, .3)
@@ -481,13 +498,15 @@ meanDiv <- rowMeans(alphaDiv[times,])
 ylim <- c(min(alphaDiv), max(alphaDiv))
 x <- rownames(alphaDiv[times,])
 
-plot(x, meanDiv, ylim=ylim, type="l")
+plot(x, meanDiv, ylim=ylim, type="l", 
+     ylab=paste0("Mean Alpha-Diversity (l=", l, ")"),
+     xlab="Day of Life")
 ```
 
-We can calculate the multiplicative change from this $\alpha$-diversity function
+We can calculate the multiplicative difference from this $\alpha$-diversity function
 for a change in a covariate. We can calculate the mean change for all 
 covariates, and find each covariates proportion of credible intervals that 
-contain the null effect (1). The inputs are the same as `calcDeltaRA` with 
+contain the null effect. The inputs are the same as `calcDeltaRA` with 
 `l` parameter in addition.
 
 ```{r, warning=FALSE}
@@ -511,16 +530,18 @@ times <- rownames(deltaAlphaDiv[[1]]) <= 50
 # proportion in the credible interval across time
 for (cov in 1:8) {
   CI <- apply(deltaAlphaDiv[[cov]][times,], 1, quantile, probs=c(.025, .975))
-  oneInCI <- (CI[1,] <= 1)*(CI[2,] >= 1)
+  oneInCI <- (CI[1,] <= 1)*(CI[2,] >= 1) # Null effect is 1
   print(paste0(combinedOutput$colMapping[[cov+1]], ": ", mean(oneInCI)))
 }
 
-# Mean accross time
+# Mean across time
 covname <- combinedOutput$colMapping[[2]]
 x <- rownames(deltaAlphaDiv[[1]][times,])
 cols <- rainbow(8) 
 meanDivFunc <- apply(deltaAlphaDiv[[1]][times,], 1, mean)
-plot(x, meanDivFunc, type="l", col=cols[1], ylim=c(.9, 1.5))
+plot(x, meanDivFunc, type="l", col=cols[1], ylim=c(.9, 1.5),
+     ylab="Mean Multiplicative Difference in Alpha-Diversity",
+     xlab="Day of Life")
 for (cov in 2:8) {
   meanDivFunc <- apply(deltaAlphaDiv[[cov]][times,], 1, mean)
   lines(x, meanDivFunc, col=cols[cov])
@@ -535,7 +556,7 @@ samples. We find that the mode of birth and the breast milk proportion are the o
 covariates that contain the null effect in the credible interval over all the 
 first 50 days.
 
-We can plot the simple for a few different covariate profiles to see the 
+We can plot the simplex for a few different covariate profiles to see the 
 distributional shifts. We will plot the simplex for Bacilli, 
 Gammaproteobacteria, and the sum of the other categories. 
 
@@ -544,22 +565,22 @@ Gammaproteobacteria, and the sum of the other categories.
 covProfile <- c(1, 27, 0, 0, 0, 0, 0, 0, .3) # baseline
 RA <- calcRA(combinedOutput, covProfile=covProfile)
 SB <- as.data.frame(t(RA[80,,]))
-SB["sumOthers"] <- 1 - rowSums(SB[c("Bacilli", "Gammaproteobacteria")])
+SB["Other"] <- 1 - rowSums(SB[c("Bacilli", "Gammaproteobacteria")])
 covProfile <- c(1, 27, 1, 0, 0, 0, 0, 0, .3) # baseline w/ male
 RA <- calcRA(combinedOutput, covProfile=covProfile)
 SM <- as.data.frame(t(RA[80,,]))
-SM["sumOthers"] <- 1 - rowSums(SM[c("Bacilli", "Gammaproteobacteria")])
+SM["Other"] <- 1 - rowSums(SM[c("Bacilli", "Gammaproteobacteria")])
 covProfile <- c(1, 27, 1, 0, 0, 1, 0, 0, .3) # baseline w/ male and single room
 RA <- calcRA(combinedOutput, covProfile=covProfile)
 SMS <- as.data.frame(t(RA[80,,]))
-SMS["sumOthers"] <- 1 - rowSums(SMS[c("Bacilli", "Gammaproteobacteria")])
+SMS["Other"] <- 1 - rowSums(SMS[c("Bacilli", "Gammaproteobacteria")])
 SB$group <- "Baseline"
 SM$group <- "Baseline w/ male"
 SMS$group <- "Baseline w/ male and single room"
-cols <- c("Bacilli", "Gammaproteobacteria", "sumOthers", "group")
+cols <- c("Bacilli", "Gammaproteobacteria", "Other", "group")
 S <- rbind(SB[,cols], SM[,cols], SMS[,cols])
 
-ggtern(S, aes(sumOthers, Bacilli, Gammaproteobacteria, color = group)) +
+ggtern(S, aes(Other, Bacilli, Gammaproteobacteria, color = group)) +
   stat_density_tern(
     aes(fill = after_stat(level)),
     geom = "path", bins = 50, alpha = 0.5
@@ -567,13 +588,14 @@ ggtern(S, aes(sumOthers, Bacilli, Gammaproteobacteria, color = group)) +
   scale_T_continuous(labels = seq(0, 1, 0.2), limits = c(0,1)) +
   scale_L_continuous(labels = seq(0, 1, 0.2), limits = c(0,1)) +
   scale_R_continuous(labels = seq(0, 1, 0.2), limits = c(0,1)) +
-  theme_bw()
+  theme_bw() +
+  guides(color = guide_legend(reverse = TRUE))
 ```
 
 ## $\beta_{cp}(t)$
 
-At times, the covariate itself is of interest. These are particularly useful for
-seeing which covariate is causing the estimated changes.
+At times, the functional covariate itself may be of interest. These are 
+particularly useful for seeing which covariate is causing the estimated changes.
 
 ```{r}
 betas <- getBetaFunctions(combinedOutput)
@@ -603,11 +625,12 @@ sort(apply(abs(meanBetas), 2, max))
 ```
 
 This shows the coefficient of Gammaproteobacteria for gestational age has the 
-smallest average mean $\beta_{jp}(t)$ over time and the smallest $|\beta_{jp}(t)|$.
-Most others are close to zero, so when the gestational age is changed the 
-concentration parameter of Gammaproteobacteria is decreased the most. This causes 
-the distribution to get pushed away from Gammaproteobacteria's corner, and 
-raises all other relative abundance consequently.
+largest negative average mean $\beta_{jp}(t)$ over time and the largest 
+$|\beta_{jp}(t)|$. Most other coefficients are close to zero, so when the 
+gestational age is changed the concentration parameter of Gammaproteobacteria is
+changed the most. Since the coefficient is negative, this causes the 
+distribution to get pushed away from Gammaproteobacteria's corner of the 
+simplex, and raises all other relative abundance consequently.
 
 # Generating Datasets
 
@@ -635,9 +658,9 @@ plusMinus <- generatedData$betaFuncMat[cov, cat] - round(generatedData$betaFuncM
 betaFunc <- ifelse(plusMinus >= 0, 1, -1)*f(generatedData$timePoints)
 ```
 
-This is only for the covariates. The intercept functions can be found in 
-`generatedData$betaIntercepts`. An example of fitting the model with the generated 
-data, then checking the coverage of the true beta functions are below.
+The intercept functions can be found in `generatedData$betaIntercepts`. An 
+example of fitting the model with the generated data, then checking the coverage
+of the true beta functions are below.
 
 ```{r}
 X <- generatedData[["covariates"]]
@@ -663,17 +686,18 @@ betaPropInCI <- mean((betaFunc >= betaEstCI[1,])*(betaFunc <= betaEstCI[2,]))
 print(betaPropInCI)
 ```
 
-We can plot the estimated mean and true $\beta_{jp}(t)$ below to see the 
-differences.
+We can plot the estimated mean and true $\beta_{jp}(t)$ below to assess 
+estimation performance.
 
 ```{r}
-plot(testpoints, rowMeans(betaEst), col="black", type="l", ylim=c(-1,1))
+plot(testpoints, rowMeans(betaEst), col="black", type="l", ylim=c(-1,1),
+     ylab=expression(beta[jp](t)), xlab="Time")
 lines(testpoints, betaFunc, col="red")
 ```
 
 # `shiny` App
 
-For visualization, the shiny app associated with the package can be used
+For visualization, the `shinyApp` associated with the package can be used
 to generate plots with ease. This app can be run with `runPlotApp`, then the 
 samples can be uploaded locally. [This](toDo) video gives a walk through on how 
 to use the app. Below is an example of the code to run the app.

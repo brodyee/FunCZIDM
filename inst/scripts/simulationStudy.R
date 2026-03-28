@@ -49,7 +49,21 @@ optionsList = list(
   make_option(c("--kappaShape"), type="numeric", default=100.0,
               help="Shape parameter for beta prior on fixed effects"),
   make_option(c("--kappaRate"), type="numeric", default=900.0,
-              help="Rate parameter for beta prior on fixed effects")
+              help="Rate parameter for beta prior on fixed effects"),
+  make_option(c("--phiShape"), type="numeric", default=3.0,
+              help="Shape parameter for gamma prior on r.e. variance" ),
+  make_option(c("--phiRate"), type="numeric", default=9.0,
+              help="Rate parameter for gamma prior on r.e. variance" ),
+  make_option(c("--thetaAlpha"), type="numeric", default=0.01,
+              help="Alpha for probability of zero inflation" ),
+  make_option(c("--thetaBeta"), type="numeric", default=10.0,
+              help="Beta for probability of zero inflation" ),
+  make_option(c("--globalParam"), type="numeric", default=1.0,
+              help="Global Parameter hyperparameter" ),
+  make_option(c("--firstBetaVar"), type="numeric", default=1.0,
+              help="Fist Beta Variance" ),
+  make_option(c("--NMDist"), type="logical", default=FALSE,
+              help="Use a Negative Multinomial to generate data instead of Multinomial")
 )
 
 optParser = OptionParser(option_list=optionsList, add_help_option=FALSE)
@@ -97,7 +111,8 @@ cat("-------------------------- Running parameters -------------------------\n")
 ###############################################################################
 #                               Generate data
 ###############################################################################
-generatedData <- generateData(n, c, p, totalCountRange=totalCount)
+generatedData <- generateData(n, c, p, totalCountRange=totalCount, 
+                              negativeMultinomial=opt$NMDist)
 X <- generatedData[["covariates"]]
 counts <- generatedData[["counts"]]
 personID <- generatedData[["ids"]]
@@ -157,7 +172,13 @@ if (opt$noZI) {
   output <- FunCZIDM(counts, X, personID, timePoints, iter=opt$numIterations, 
                      burnIn=opt$burnIn, thin=opt$thin, toReturn=opt$toReturn,
                      priors=list("kappaShape"=opt$kappaShape, 
-                                 "kappaRate"=opt$kappaRate),
+                                 "kappaRate"=opt$kappaRate,
+                                 "a"=opt$phiShape,
+                                 "b"=opt$phiRate,
+                                 "alpha"=opt$thetaAlpha,
+                                 "beta"=opt$thetaBeta,
+                                 "globalParam"=opt$globalParam,
+                                 "first beta sd"=sqrt(opt$firstBetaVar)),
                      proposalVars=list("beta proposal sd"=opt$propSigma),
                      df=opt$df, saveToFile=FALSE, saveNullInBetaCI = FALSE)
   endTime <- Sys.time()
@@ -165,7 +186,7 @@ if (opt$noZI) {
 totalTime <- as.numeric(difftime(endTime, startTime, units = "secs"))
 
 numDf <- output$df
-tvList <- list(basisFunc = output$basis, interiorKnots = output$interiorKnots,
+tvList <- list(basisFunc = output$basisFunc, interiorKnots = output$interiorKnots,
                boundaryKnots = output$boundaryKnots)
 ###############################################################################
 #                               Get results
@@ -281,6 +302,10 @@ fit <- FunCZIDM:::getFit(output$beta, basisTP, covariates,
                          output$XvartoXColMapping)
 sumExpFit <- FunCZIDM:::getSumExpFit(fit)
 baselineRA <- FunCZIDM:::getRAFitsPrecalc(fit, sumExpFit)
+nullFunc <- rep(0, length(testPoints))
+funcEvalFile <- sprintf("%d/FuncEvalSummary%d.csv", opt$seed, opt$seed)
+cat("covariate,Func Num,Mean RMSE,Coverage,Proportion Null Coverage,zero prop,Mean Accept Rate\n",
+    file=funcEvalFile)
 outputFile <- sprintf("%d/RAStats%d.csv", opt$seed, opt$seed)
 cat("category,covariate,mean RMSE,sd RMSE,RA 95 CI,zero prop,B(t) 95 CI,accept rate\n",
     file=outputFile)
@@ -313,6 +338,8 @@ for (tvc in 1:numTVCov) {
       trueBetaFunc <- ifelse(plusMinus >= 0, 1, -1)*f(testPoints)
       inCIBt <- betaFuncQuant[1,] < trueBetaFunc & 
                 trueBetaFunc < betaFuncQuant[2,]
+      funcNum <- round(funcMat[tvc-1,catToCheck])
+      BtRMSE <- apply(betaVCFit, 2, function(a) sqrt(mean((a-trueBetaFunc)^2)))
     } else {
       RA <- baselineRA[,catToCheck,]
       trueRA <-  interceptTrueRA[, catToCheck]
@@ -321,7 +348,13 @@ for (tvc in 1:numTVCov) {
                              probs=c(0.025, 0.975))
       inCIBt <- betaFuncQuant[1,] < betaTrueFunc[,catToCheck] & 
                  betaTrueFunc[,catToCheck] < betaFuncQuant[2,]
+      funcNum <- round(betaTrue[1,catToCheck])
+      BtRMSE <- apply(intercepts[,catToCheck,], 2, 
+                      function(a) sqrt(mean((a - betaTrueFunc[,catToCheck])^2)))
     }
+    propNullCoverage <- mean(betaFuncQuant[1,] < nullFunc & 
+                             nullFunc < betaFuncQuant[2,])
+    
     # get 2.5th and 97.5th percentiles of each row in RA
     RAQuant <- apply(RA, 1, quantile, probs=c(0.025, 0.975))
     # check how many of the trueRA values are within the 95% CI
@@ -336,7 +369,11 @@ for (tvc in 1:numTVCov) {
                                             catToCheck],
         sep = ",", file=outputFile, append=TRUE)
     cat("\n", file=outputFile, append=TRUE)
-      
+    cat(covariate,funcNum, mean(BtRMSE), mean(inCIBt), propNullCoverage, zeroProp,
+        mean(output$betaAcceptProp[startTV:(startTV+numDf-1),catToCheck]),
+        sep = ",", file=funcEvalFile, append=TRUE)
+    cat("\n", file=funcEvalFile, append=TRUE)
+
     if (catToCheck <= 10) {  
       # plot the 95% CI
       x <- testPoints
@@ -350,7 +387,7 @@ for (tvc in 1:numTVCov) {
         
       RAMean <- apply(RA, 1, mean)
       if (covariate != "intercept") {
-        ylab <- "Multipicative Change in Relative Abundance"
+        ylab <- "Multipicative Difference in Relative Abundance"
       } else {
         ylab <- "Relative Abundance"
       }

@@ -12,31 +12,28 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // FunCZIDMSampler
-List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X, const arma::uvec ID_END_IDX, const arma::uvec RAND_EFF_COLS, const int BURN_IN, const int NUM_THIN, const int ADJ_FREQ, const double PROPOSAL_CAP, const bool ZI_GROUPED, const bool ADJ_PROPOSALS, const bool RETURN_BURN_IN, const bool CAP_PROPOSALS, const bool PRINT_PROGRESS, const Rcpp::CharacterVector TO_RETRUN, Nullable<arma::mat> betaInitial, Nullable<arma::mat> rInitial, Nullable<List> priors, Nullable<List> proposalVars);
-RcppExport SEXP _FunCZIDM_FunCZIDMSampler(SEXP ITERSEXP, SEXP COUNTSSEXP, SEXP XSEXP, SEXP ID_END_IDXSEXP, SEXP RAND_EFF_COLSSEXP, SEXP BURN_INSEXP, SEXP NUM_THINSEXP, SEXP ADJ_FREQSEXP, SEXP PROPOSAL_CAPSEXP, SEXP ZI_GROUPEDSEXP, SEXP ADJ_PROPOSALSSEXP, SEXP RETURN_BURN_INSEXP, SEXP CAP_PROPOSALSSEXP, SEXP PRINT_PROGRESSSEXP, SEXP TO_RETRUNSEXP, SEXP betaInitialSEXP, SEXP rInitialSEXP, SEXP priorsSEXP, SEXP proposalVarsSEXP) {
+List FunCZIDMSampler(const int ITER, const arma::umat COUNTS, arma::mat X, const arma::uvec ID_END_IDX, const arma::uvec RAND_EFF_COLS, const int BURN_IN, const int NUM_THIN, const int ADJ_FREQ, const bool ADJ_PROPOSALS, const bool RETURN_BURN_IN, const bool PRINT_PROGRESS, const Rcpp::CharacterVector TO_RETRUN, Nullable<arma::mat> betaInitial, Nullable<arma::mat> rInitial, Nullable<List> priors, Nullable<List> proposalVars);
+RcppExport SEXP _FunCZIDM_FunCZIDMSampler(SEXP ITERSEXP, SEXP COUNTSSEXP, SEXP XSEXP, SEXP ID_END_IDXSEXP, SEXP RAND_EFF_COLSSEXP, SEXP BURN_INSEXP, SEXP NUM_THINSEXP, SEXP ADJ_FREQSEXP, SEXP ADJ_PROPOSALSSEXP, SEXP RETURN_BURN_INSEXP, SEXP PRINT_PROGRESSSEXP, SEXP TO_RETRUNSEXP, SEXP betaInitialSEXP, SEXP rInitialSEXP, SEXP priorsSEXP, SEXP proposalVarsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const int >::type ITER(ITERSEXP);
     Rcpp::traits::input_parameter< const arma::umat >::type COUNTS(COUNTSSEXP);
-    Rcpp::traits::input_parameter< const arma::mat >::type X(XSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type X(XSEXP);
     Rcpp::traits::input_parameter< const arma::uvec >::type ID_END_IDX(ID_END_IDXSEXP);
     Rcpp::traits::input_parameter< const arma::uvec >::type RAND_EFF_COLS(RAND_EFF_COLSSEXP);
     Rcpp::traits::input_parameter< const int >::type BURN_IN(BURN_INSEXP);
     Rcpp::traits::input_parameter< const int >::type NUM_THIN(NUM_THINSEXP);
     Rcpp::traits::input_parameter< const int >::type ADJ_FREQ(ADJ_FREQSEXP);
-    Rcpp::traits::input_parameter< const double >::type PROPOSAL_CAP(PROPOSAL_CAPSEXP);
-    Rcpp::traits::input_parameter< const bool >::type ZI_GROUPED(ZI_GROUPEDSEXP);
     Rcpp::traits::input_parameter< const bool >::type ADJ_PROPOSALS(ADJ_PROPOSALSSEXP);
     Rcpp::traits::input_parameter< const bool >::type RETURN_BURN_IN(RETURN_BURN_INSEXP);
-    Rcpp::traits::input_parameter< const bool >::type CAP_PROPOSALS(CAP_PROPOSALSSEXP);
     Rcpp::traits::input_parameter< const bool >::type PRINT_PROGRESS(PRINT_PROGRESSSEXP);
     Rcpp::traits::input_parameter< const Rcpp::CharacterVector >::type TO_RETRUN(TO_RETRUNSEXP);
     Rcpp::traits::input_parameter< Nullable<arma::mat> >::type betaInitial(betaInitialSEXP);
     Rcpp::traits::input_parameter< Nullable<arma::mat> >::type rInitial(rInitialSEXP);
     Rcpp::traits::input_parameter< Nullable<List> >::type priors(priorsSEXP);
     Rcpp::traits::input_parameter< Nullable<List> >::type proposalVars(proposalVarsSEXP);
-    rcpp_result_gen = Rcpp::wrap(FunCZIDMSampler(ITER, COUNTS, X, ID_END_IDX, RAND_EFF_COLS, BURN_IN, NUM_THIN, ADJ_FREQ, PROPOSAL_CAP, ZI_GROUPED, ADJ_PROPOSALS, RETURN_BURN_IN, CAP_PROPOSALS, PRINT_PROGRESS, TO_RETRUN, betaInitial, rInitial, priors, proposalVars));
+    rcpp_result_gen = Rcpp::wrap(FunCZIDMSampler(ITER, COUNTS, X, ID_END_IDX, RAND_EFF_COLS, BURN_IN, NUM_THIN, ADJ_FREQ, ADJ_PROPOSALS, RETURN_BURN_IN, PRINT_PROGRESS, TO_RETRUN, betaInitial, rInitial, priors, proposalVars));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -244,34 +241,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// getSignifCovProfileRA
-arma::uvec getSignifCovProfileRA(const arma::cube& betaVCFits, const arma::mat& betaVCFit, const arma::cube& fit, const arma::mat& sumExpFit, const double change);
-RcppExport SEXP _FunCZIDM_getSignifCovProfileRA(SEXP betaVCFitsSEXP, SEXP betaVCFitSEXP, SEXP fitSEXP, SEXP sumExpFitSEXP, SEXP changeSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::cube& >::type betaVCFits(betaVCFitsSEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type betaVCFit(betaVCFitSEXP);
-    Rcpp::traits::input_parameter< const arma::cube& >::type fit(fitSEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type sumExpFit(sumExpFitSEXP);
-    Rcpp::traits::input_parameter< const double >::type change(changeSEXP);
-    rcpp_result_gen = Rcpp::wrap(getSignifCovProfileRA(betaVCFits, betaVCFit, fit, sumExpFit, change));
-    return rcpp_result_gen;
-END_RCPP
-}
-// getSignifCovProfileAlpha
-bool getSignifCovProfileAlpha(const arma::cube& fit, const arma::cube& fitBase, const double l);
-RcppExport SEXP _FunCZIDM_getSignifCovProfileAlpha(SEXP fitSEXP, SEXP fitBaseSEXP, SEXP lSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::cube& >::type fit(fitSEXP);
-    Rcpp::traits::input_parameter< const arma::cube& >::type fitBase(fitBaseSEXP);
-    Rcpp::traits::input_parameter< const double >::type l(lSEXP);
-    rcpp_result_gen = Rcpp::wrap(getSignifCovProfileAlpha(fit, fitBase, l));
-    return rcpp_result_gen;
-END_RCPP
-}
 // getTrueVCRAFromMat
 arma::vec getTrueVCRAFromMat(const arma::mat& trueIntercepts, const arma::vec& testPoints, int catToCheck, const arma::vec& funcInfo, bool interceptTV);
 RcppExport SEXP _FunCZIDM_getTrueVCRAFromMat(SEXP trueInterceptsSEXP, SEXP testPointsSEXP, SEXP catToCheckSEXP, SEXP funcInfoSEXP, SEXP interceptTVSEXP) {
@@ -304,7 +273,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_FunCZIDM_FunCZIDMSampler", (DL_FUNC) &_FunCZIDM_FunCZIDMSampler, 19},
+    {"_FunCZIDM_FunCZIDMSampler", (DL_FUNC) &_FunCZIDM_FunCZIDMSampler, 16},
     {"_FunCZIDM_getFit", (DL_FUNC) &_FunCZIDM_getFit, 4},
     {"_FunCZIDM_getSumExpFit", (DL_FUNC) &_FunCZIDM_getSumExpFit, 1},
     {"_FunCZIDM_getFitOfData", (DL_FUNC) &_FunCZIDM_getFitOfData, 2},
@@ -320,8 +289,6 @@ static const R_CallMethodDef CallEntries[] = {
     {"_FunCZIDM_getDeltaRA", (DL_FUNC) &_FunCZIDM_getDeltaRA, 5},
     {"_FunCZIDM_getDeltaRAMeanAndCI", (DL_FUNC) &_FunCZIDM_getDeltaRAMeanAndCI, 5},
     {"_FunCZIDM_aitchison_distance", (DL_FUNC) &_FunCZIDM_aitchison_distance, 2},
-    {"_FunCZIDM_getSignifCovProfileRA", (DL_FUNC) &_FunCZIDM_getSignifCovProfileRA, 5},
-    {"_FunCZIDM_getSignifCovProfileAlpha", (DL_FUNC) &_FunCZIDM_getSignifCovProfileAlpha, 3},
     {"_FunCZIDM_getTrueVCRAFromMat", (DL_FUNC) &_FunCZIDM_getTrueVCRAFromMat, 5},
     {"_FunCZIDM_getTrueHillDivMultiChange", (DL_FUNC) &_FunCZIDM_getTrueHillDivMultiChange, 5},
     {NULL, NULL, 0}

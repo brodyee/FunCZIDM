@@ -176,7 +176,8 @@ getBasisX <- function(X, varyingCov, covWithVC, df = 4, degree=3,
 
 getNullInBetaCIProportion <- function(output, XvartoXColMapping, colMapping,
                                       varyingCov, catNames, interiorKnots,
-                                      boundaryKnots, basisFunc=splines::bs,
+                                      boundaryKnots,
+                                      basisFunc=splines::bs,
                                       df=4, fileName = "") {
   # Extracts the null in CI statistics from the output of FunCZIDM
   # output: output of FunCZIDM
@@ -330,8 +331,8 @@ FunCDM <- function(counts, covariates, ids, varyingCov,
   
   if (saveNullInBetaCI) { 
     getNullInBetaCIProportion(output, XvartoXColMapping, colMapping, varyingCov,
-                              colnames(counts), interiorKnots, 
-                              boundaryKnots, basisFunc=basisFunc, df=df, 
+                              colnames(counts), interiorKnots, boundaryKnots,
+                              basisFunc=basisFunc, df=df, 
                               fileName = nullInBetaCIFileName)
   }
     
@@ -439,7 +440,8 @@ VarCoDM <- function(counts, covariates, ids, varyingCov, iter = 10000,
   if (saveNullInBetaCI) { 
     getNullInBetaCIProportion(output, XvartoXColMapping, colMapping, varyingCov,
                               colnames(counts), interiorKnots, 
-                              boundaryKnots, basisFunc=basisFunc, df=df, 
+                              boundaryKnots, 
+                              basisFunc=basisFunc, df=df, 
                               fileName = nullInBetaCIFileName)
   }
     
@@ -549,7 +551,8 @@ VarCoZIDM <- function(counts, covariates, ids, varyingCov, iter = 10000,
   if (saveNullInBetaCI) { 
     getNullInBetaCIProportion(output, XvartoXColMapping, colMapping, varyingCov,
                               colnames(counts), interiorKnots, 
-                              boundaryKnots, basisFunc=basisFunc, df=df, 
+                              boundaryKnots,
+                              basisFunc=basisFunc, df=df, 
                               fileName = nullInBetaCIFileName)
   }
     

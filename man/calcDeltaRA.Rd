@@ -2,7 +2,7 @@
 % Please edit documentation in R/FunCZIDM.R
 \name{calcDeltaRA}
 \alias{calcDeltaRA}
-\title{Calculate the Multipicative Change in Relateive Abundance}
+\title{Calculate the Multipicative Difference in Relateive Abundance}
 \usage{
 calcDeltaRA(output, change, forCovs, covProfile = NULL, forCats = NULL)
 }

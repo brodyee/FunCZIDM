@@ -21,9 +21,6 @@
 #' @param thin (integer, default=1) Number of iterations to thin by.
 #' @param adjustFreq (numeric, default=250) Frequency at which 
 #' \eqn{\beta_{jpd}^*} proposals are adjusted.
-#' @param ZIGrouped (logical, default=TRUE) Whether to use the zero inflation 
-#' indicator for all samples of an id (TRUE), or each sample have their own 
-#' indicator (FALSE).
 #' @param returnBurnIn (logical, default=FALSE) Whether to return burn-in 
 #' samples.
 #' @param printProgress (logical, default=TRUE) Whether to print progress bar.
@@ -179,12 +176,11 @@
 #' @export 
 FunCZIDM <- function(counts, covariates, ids, varyingCov, 
                      iter = 10000, burnIn = 5000, thin = 1, adjustFreq = 250,
-                     ZIGrouped = TRUE, returnBurnIn = FALSE, 
-                     printProgress = TRUE, toReturn = NULL, betaInitial = NULL, 
-                     rInitial = NULL, priors = NULL, proposalVars = NULL, 
-                     covWithoutVC=NULL, df=4, degree=3, basisFunc=splines::bs,
-                     saveToFile = TRUE, fileName = "output.rds", 
-                     saveNullInBetaCI = TRUE, 
+                     returnBurnIn = FALSE, printProgress = TRUE, 
+                     toReturn = NULL, betaInitial = NULL, rInitial = NULL, 
+                     priors = NULL, proposalVars = NULL, covWithoutVC=NULL, 
+                     df=4, degree=3, basisFunc=splines::bs, saveToFile = TRUE, 
+                     fileName = "output.rds", saveNullInBetaCI = TRUE, 
                      nullInBetaCIFileName = "nullInBetaCI.csv") {
   # error checks
   args <- as.list(environment())
@@ -252,11 +248,8 @@ FunCZIDM <- function(counts, covariates, ids, varyingCov,
                             BURN_IN = burnIn,
                             NUM_THIN = thin,
                             ADJ_FREQ = adjustFreq,
-                            PROPOSAL_CAP = 0, # no capping the proposals
-                            ZI_GROUPED = ZIGrouped,
                             ADJ_PROPOSALS = adjustProp,
                             RETURN_BURN_IN = returnBurnIn,
-                            CAP_PROPOSALS = FALSE, # no capping the proposals
                             PRINT_PROGRESS = printProgress,
                             TO_RETRUN = toReturn,
                             betaInitial = betaInitial,
@@ -372,7 +365,7 @@ calcRA <- function(output, covProfile=NULL) {
   return(ret)
 }
 
-#' @title Calculate the Multipicative Change in Relateive Abundance
+#' @title Calculate the Multipicative Difference in Relateive Abundance
 #' @description This function calculates the \eqn{\Delta_vRA_{jp}(t)} statistic
 #' from the samples of \code{FunCZIDM}. 
 #' @param output (list) Output list from \code{FunCZIDM}
@@ -731,7 +724,7 @@ combineOutputs <- function(outputFiles, saveToFile = TRUE,
 #' timepoints and the true parameters.
 #' @export 
 generateData <- function(n, c, p, totalCountRange = c(100, 200),
-                         numActive = 4) {
+                         numActive = 4, negativeMultinomial = FALSE) {
   ### Generate predictor matrices ###
   timePoints <- c()
   numObsPerID <- numeric(n)
@@ -834,6 +827,15 @@ generateData <- function(n, c, p, totalCountRange = c(100, 200),
   # Generate counts from a Multinomial distribution
   getCounts <- function(N, RA) {
     rmultinom(1, N, RA)
+  }
+
+  if (negativeMultinomial) {
+    if(!require(MGLM)){
+       stop("MGLM package required")
+     }
+    getCounts <- function(N, RA) {
+      MGLM::rnegmn(n=1, beta=N, prob=.5*RA)
+    }
   }
 
   # Apply getCounts to each row of parms

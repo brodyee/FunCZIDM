@@ -13,7 +13,6 @@ FunCZIDM(
   burnIn = 5000,
   thin = 1,
   adjustFreq = 250,
-  ZIGrouped = TRUE,
   returnBurnIn = FALSE,
   printProgress = TRUE,
   toReturn = NULL,
@@ -53,10 +52,6 @@ less than \code{iter}.}
 
 \item{adjustFreq}{(numeric, default=250) Frequency at which
 \eqn{\beta_{jpd}^*} proposals are adjusted.}
-
-\item{ZIGrouped}{(logical, default=TRUE) Whether to use the zero inflation
-indicator for all samples of an id (TRUE), or each sample have their own
-indicator (FALSE).}
 
 \item{returnBurnIn}{(logical, default=FALSE) Whether to return burn-in
 samples.}

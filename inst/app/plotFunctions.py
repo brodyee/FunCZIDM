@@ -26,8 +26,6 @@ def ciAxLabels(ax, title, ylabel, xlabel, fontsize):
     ax.set_xlabel(xlabel, fontsize=fontsize)
     ax.tick_params(axis='x', labelsize=fontsize, rotation=0)
     ax.tick_params(axis='y', labelsize=fontsize, rotation=0)
-    #ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=fontsize)
-    #ax.set_xticklabels(ax.get_xticklabels(), rotation=0, fontsize=fontsize)
 
 def makeCIPlot(data, ax, cat, titlePrefix, ylabel, xLabel, isRA=True, 
                labelX=True, changeIn=True, by=0.5, fontsize=10, 
@@ -53,12 +51,14 @@ def makeCIPlot(data, ax, cat, titlePrefix, ylabel, xLabel, isRA=True,
     if isRA and not changeIn and (yMax > 1):
         yMax = 1
     if sameYaxis:
-        y_ticks = np.linspace(yMin, yMax, by)
+        y_ticks = np.linspace(yMin, yMax, by) # When sameYaxis, by is number of ticks
     else:
         y_ticks = np.arange(yMin, yMax, by)
     
     roundTo = 2
-    while len(np.unique(y_ticks)) != len(np.unique(np.round(y_ticks, roundTo))):
+    isUnique = len(np.unique(y_ticks)) != len(np.unique(np.round(y_ticks, roundTo)))
+    while isUnique and isEven:
+        isUnique = len(np.unique(y_ticks)) != len(np.unique(np.round(y_ticks, roundTo)))
         roundTo += 1
     y_ticks = np.round(y_ticks, roundTo)
     ax.set_yticks(y_ticks)
@@ -99,7 +99,7 @@ def curvePlots(dataDict, suptitle, raTitlePrefix, betaTitlePrefix, raYlabel,
                            dataDict.values()) - .03
             yMaxBeta = max(max(subdict["beta"]["upperCI"]) for subdict in 
                            dataDict.values()) + .03
-            byBeta = byRA
+            byBeta = byRA # When sameYaxis, the byRA is the number of ticks
         else:
             yMinBeta, yMaxBeta = None, None
     else:
@@ -208,7 +208,7 @@ def makeHeatmapPlot(ax, heatmapDat, norm, cmap, cat, fontsize, xlabel, ylabel,
                     cbarLabel = r"$\Delta_{v} \mathrm{RA}_{cp}(t)$", 
                     cbarTicks = None, xPos = None, yPos = None, xLabels = None, 
                     yLabels = None):
-    # 3. Draw the seaborn heatmap
+    # Draw the seaborn heatmap
     hm = sns.heatmap(heatmapDat, cmap=cmap, norm=norm, ax=ax, cbar=cbar,
                      cbar_kws={"label": cbarLabel, "ticks": cbarTicks} if cbar 
                                                                        else {})
@@ -217,7 +217,7 @@ def makeHeatmapPlot(ax, heatmapDat, norm, cmap, cat, fontsize, xlabel, ylabel,
         cbar_obj.ax.tick_params(labelsize=fontsize)  # tick labels
         cbar_obj.ax.yaxis.label.set_size(fontsize)   # cbar label
         
-    # 4. Apply titles and axis labels via helper
+    # Apply titles and axis labels via helper
     heatmapAxLabels(ax, cat, fontsize, xlabel, ylabel, xPos, yPos, xLabels,
                     yLabels)
 
@@ -245,7 +245,7 @@ def heatmapPlots(dataDict, suptitle, covChange, inCI, figsize = (15, 6),
         roundTo += 1
     cbarTicks = np.round(cbarTicks, roundTo)
     
-    # 2. Create a row of subplots, one per category
+    # Create a row of subplots, one per category
     n_cats = len(dataDict)
     fig, axes = plt.subplots(1, n_cats, figsize=figsize, squeeze=False, 
                              constrained_layout=True)
@@ -262,7 +262,9 @@ def heatmapPlots(dataDict, suptitle, covChange, inCI, figsize = (15, 6),
         xLabels = [heatmapDat.columns[i] for i in xPos]
 
         # Y-axis ticks
-        yPos = np.linspace(0, heatmapDat.shape[0]-1, numYticks, dtype=int)
+        step = (heatmapDat.shape[0] - 1) / (numYticks - 1)
+        yPos = np.round(np.arange(0, heatmapDat.shape[0], step)).astype(int)
+        yPos = np.unique(yPos)  # safety against duplicates
         yLabels = [heatmapDat.index[i] for i in yPos]
 
         hm = makeHeatmapPlot(ax=ax, heatmapDat=heatmapDat, norm=norm, cmap=cmap,
@@ -270,7 +272,7 @@ def heatmapPlots(dataDict, suptitle, covChange, inCI, figsize = (15, 6),
                              ylabel="", xPos=xPos, yPos=yPos, xLabels=xLabels,
                              yLabels=yLabels)
     
-    # 4. Adjust layout, add suptitle, save
+    # Adjust layout, add suptitle, save
     pos = axes[0].get_position()
     fig.supylabel(ylabel, fontsize=fontsize, x=-0.025)
     pos = axes[-1].get_position()
@@ -308,7 +310,7 @@ def divHeatmapPlots(dataDict, suptitle, covChange, inCI, figsize=(15, 6),
         roundTo += 1
     cbarTicks = np.round(cbarTicks, roundTo)
     
-    # 2. Create a row of subplots, one per category
+    # Create a row of subplots, one per category
     fig, axes = plt.subplots(1, 1, figsize=figsize, squeeze=False, 
                              constrained_layout=True)
     axes = axes.flatten()
@@ -331,7 +333,7 @@ def divHeatmapPlots(dataDict, suptitle, covChange, inCI, figsize=(15, 6),
                         cbar=True, cbarLabel=cbarLabel, cbarTicks=cbarTicks, 
                         xPos=xPos, yPos=yPos, xLabels=xLabels, yLabels=yLabels)
     
-    # 4. Adjust layout, add suptitle, save
+    # Adjust layout, add suptitle, save
     fig.suptitle(suptitle, fontsize=titleSize, y=suptitleLoc[1], 
                  x=suptitleLoc[0])
     plt.close(fig)
