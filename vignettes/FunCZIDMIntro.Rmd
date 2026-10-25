@@ -699,8 +699,7 @@ lines(testpoints, betaFunc, col="red")
 
 For visualization, the `shinyApp` associated with the package can be used
 to generate plots with ease. This app can be run with `runPlotApp`, then the 
-samples can be uploaded locally. [This](toDo) video gives a walk through on how 
-to use the app. Below is an example of the code to run the app.
+samples can be uploaded locally. 
 
 ```{r, eval=FALSE}
 runPlotApp(useCondaEnv=TRUE)

@@ -21,7 +21,8 @@ taxa <- c("Bacilli", "Clostridia", "Gammaproteobacteria")
 covProfile <- c(1, 27, 0, 0, 0, 0, 0, 0, .3)
 change <- c(2, 1, 1) 
 forCovs <- c(2, 7, 8) 
-covNames <- c("Gestational Age", "Diet of > 50\% Breast Milk", "Diet of 10-50\% Breast Milk")
+covNames <- c("GA", "BM50", "BM1050")
+covLabels <- c("Gestational Age", "Diet of > 50% Breast Milk", "Diet of 10-50% Breast Milk")
 output <- readRDS(files[1])
 forCats <- match(taxa, output$catNames)
 deltaRA <- list()
@@ -55,7 +56,7 @@ for (c in 1:length(forCovs)) {
   for (t in 1:length(taxa)) {
     plot(deltaRA[[1]][[c]][109, t, ], type="l", col="black", 
          xlab="Iteration", ylab="Change in RA sample",
-         main=paste("Traceplot for", taxa[t], "and", covNames[c]),
+         main=paste("Traceplot for", taxa[t], "and", covLabels[c]),
          ylim=c(minYs[t], maxYs[t]))
     for (f in 2:length(files)) {
       lines(deltaRA[[f]][[c]][109, t, ], col=f)

@@ -84,7 +84,7 @@ def curvePlots(dataDict, suptitle, raTitlePrefix, betaTitlePrefix, raYlabel,
                                  n_cats//n_rows + 1 if n_cats%n_rows != 0 else \
                                  n_cats//n_rows 
         n_rows, n_cols = (int(n_rows), int(n_cols)) 
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, squeeze=False, 
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, dpi=300, squeeze=False, 
                              constrained_layout=True)
     axes = axes.flatten()
     
@@ -159,7 +159,7 @@ def divCurvePlots(dataDict, suptitle, yLabel, xLabel, changeIn,
                   multiChange = False, lineWidth = 1, byY = 0.05, fontsize = 10,
                   titleSize = 17, figsize = (15, 10), xAxisRange = None, 
                   legendLoc = (0.46, -0.01), suptitleLoc = (.45, .77)):
-    fig, axes = plt.subplots(1, 1, figsize=figsize, squeeze=False, 
+    fig, axes = plt.subplots(1, 1, figsize=figsize, dpi=300, squeeze=False, 
                              constrained_layout=True)
     axes = axes.flatten()
     ax = axes[0]
@@ -247,7 +247,7 @@ def heatmapPlots(dataDict, suptitle, covChange, inCI, figsize = (15, 6),
     
     # Create a row of subplots, one per category
     n_cats = len(dataDict)
-    fig, axes = plt.subplots(1, n_cats, figsize=figsize, squeeze=False, 
+    fig, axes = plt.subplots(1, n_cats, figsize=figsize, dpi=300, squeeze=False, 
                              constrained_layout=True)
     axes = axes.flatten()
     for ax, (cat, dataList) in zip(axes, dataDict.items()):
@@ -311,7 +311,7 @@ def divHeatmapPlots(dataDict, suptitle, covChange, inCI, figsize=(15, 6),
     cbarTicks = np.round(cbarTicks, roundTo)
     
     # Create a row of subplots, one per category
-    fig, axes = plt.subplots(1, 1, figsize=figsize, squeeze=False, 
+    fig, axes = plt.subplots(1, 1, figsize=figsize, dpi=300, squeeze=False, 
                              constrained_layout=True)
     axes = axes.flatten()
     for ax, (_, dataList) in zip(axes, dataDict.items()):

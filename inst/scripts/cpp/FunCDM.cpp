@@ -20,7 +20,7 @@ List FunCDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
                    const arma::uvec RAND_EFF_COLS,
                    const int BURN_IN = 0,
                    const int NUM_THIN = 1,
-                   const int ADJ_FREQ = 250,
+                   const int ADJ_FREQ = 1000,
                    const double PROPOSAL_CAP = 0.75,
                    const bool ADJ_PROPOSALS = true,
                    const bool RETURN_BURN_IN = false,
@@ -129,12 +129,15 @@ List FunCDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
   mat nu(NUM_COEF - 1, NUM_CAT, fill::ones);
   rowvec tau(NUM_CAT, fill::ones);
   rowvec xi(NUM_CAT, fill::ones);
+  kappa *= kappaRate/kappaShape;
+  lambda *= .1;
+  tau *= .1;
   
   // The initial values for beta and r can be specified.
   if (betaInitial.isNotNull()) {
     beta = as<mat>(betaInitial);
   } else {
-    fillRandSampleMat(beta, -.75, .75);
+    fillRandSampleMat(beta, -.05, .05);//-.75, .75);
   }
   if (rInitial.isNotNull()) {
     r = as<mat>(rInitial);
@@ -142,7 +145,7 @@ List FunCDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
     fillRandSampleMat(r, -.05, .05);
   }
   fillGammaVec(phi, phiShape, phiRate);
-  fillLambdaNu(lambda, nu);
+  //fillLambdaNu(lambda, nu); 
   
   gamma = arma::exp(X*beta + Y*r); sampleCnoZI(c, COUNTS, u, gamma);
   
@@ -156,13 +159,13 @@ List FunCDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
     sampleU(u, c, COUNTS);
     sampleBetaNoZI(beta, X, c, kappa, tau, lambda, gamma, betaAcceptProp, 
                    betaProposalSD, betaAcceptCount, firstBetaSD);
-    sampleKappa(kappa, beta, kappaShape, kappaRate);
+    sampleKappa(kappa, beta, kappaShape, kappaRate, lambda, tau);
     sampleRGroupedNoZI(r, Y, c, phi, gamma, NUM_RE_PER_ID, ID_END_IDX,
                        rAcceptProp, rProposalSD);
     samplePhi(phi, r, NUM_RE_PER_ID, phiShape, phiRate);
-    sampleLambda(lambda, beta, nu, tau);
+    sampleLambda(lambda, beta, nu, tau, kappa);
     sampleNu(nu, lambda);
-    sampleTau(tau, beta, lambda, xi);
+    sampleTau(tau, beta, lambda, xi, kappa);
     sampleXi(xi, tau);
     
     // Adjusting proposal variances

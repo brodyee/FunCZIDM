@@ -11,8 +11,7 @@ if (!nzchar(helpersFile)) {
 }
 source(helpersFile)
 
-plotModule <- system.file("scripts", "caseStudySensPlotFunctions.py",
-                          package = "FunCZIDM")
+plotModule <- "caseStudySensPlotFunctions.py"
 if (!nzchar(plotModule)) {
   plotModule <- "inst/scripts/caseStudySensPlotFunctions.py"
 }
@@ -29,6 +28,9 @@ tryCatch(
            paste(missing, collapse = ", "))
     }
   },
+  warning = function(w) {
+    # Code to run if a warning occurs
+  },
   error = function(e) {
     message("shinyPy conda env not available. Installing required Python packages in active environment.")
     message("Configured Python:")
@@ -36,6 +38,9 @@ tryCatch(
     if (length(missing)) {
       py_require(missing)
     }
+  },
+  finally = {
+    # Code that always runs, whether an error/warning occurred or not
   }
 )
 reticulate::source_python(plotModule)
@@ -53,8 +58,8 @@ trueRA <- counts/rowTotals
 gaCovariate <- "Gestational.age.at.birth...weeks"
 gaExposureLabels <- c("GA +1 week", "GA -1 week")
 milkCovariates <- c("milk> 50%", "milk10–50%")
-milkExposureLabels <- c("Breast milk > 50% vs < 10%",
-                        "Breast milk 10-50% vs < 10%")
+milkExposureLabels <- c("Breast milk $> 50\\%$ vs $< 10\\%$",
+                        "Breast milk $10-50\\%$ vs $< 10\\%$")
 aitchisonEps <- 1e-8
 
 summarizeScenario <- function(output, scenario, taxa, exposureSettings, covProfile) {
@@ -89,7 +94,8 @@ summarizeScenario <- function(output, scenario, taxa, exposureSettings, covProfi
 }
 
 scenarioDirs <- c(
-  "CS_Orig",
+  #"CS_Orig",
+  "caseStudy",
   "CS_unifTh",
   "CS_midTh",
   "CS_weakInfoKappa",

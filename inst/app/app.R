@@ -49,13 +49,13 @@ ui <- fluidPage(
         inputId = "plotType", 
         label = "Choose a plot:",
         choices = c("Relative Abundance", 
-                    "Multiplicative Change in Relative Abundance",
+                    "Multiplicative Difference in Relative Abundance",
                     "Diversity",
-                    "Multiplicative Change in Diversity"),
+                    "Multiplicative Difference in Diversity"),
         selected = "Relative Abundance"
       ),
       conditionalPanel(
-        condition = "['Multiplicative Change in Relative Abundance', 
+        condition = "['Multiplicative Difference in Relative Abundance', 
                       'Relative Abundance'].includes(input.plotType)",
         selectInput(
           inputId = "category", 
@@ -66,8 +66,8 @@ ui <- fluidPage(
         )
       ),
       conditionalPanel(
-        condition = "['Multiplicative Change in Relative Abundance',
-                'Multiplicative Change in Diversity'].includes(input.plotType)",
+        condition = "['Multiplicative Difference in Relative Abundance',
+                'Multiplicative Difference in Diversity'].includes(input.plotType)",
         selectInput(
           inputId = "covariate", 
           label = "Choose a covariate:",
@@ -78,7 +78,7 @@ ui <- fluidPage(
       ),
       uiOutput("plotBetas_ui"),
       conditionalPanel(
-        condition = "['Multiplicative Change in Diversity',
+        condition = "['Multiplicative Difference in Diversity',
                       'Diversity'].includes(input.plotType)",
         tags$div(
           style = "margin-bottom: 4px; display: inline-block;",
@@ -265,7 +265,7 @@ server <- function(input, output, session) {
     # When the checkbox should be visible
     raShow  <- input$plotType == "Relative Abundance"
     deltaRAShow <- input$plotType == 
-                                   "Multiplicative Change in Relative Abundance" 
+                                   "Multiplicative Difference in Relative Abundance" 
 
     # Preserve current state if it exists; default TRUE on first render
     current <- isolate(input$plotBetas)
@@ -329,8 +329,8 @@ server <- function(input, output, session) {
     # --- dynamic controls (conditionally shown) ---
     dyn <- list()
 
-    changeRA <- input$plotType == "Multiplicative Change in Relative Abundance"
-    divPlot <- input$plotType == "Multiplicative Change in Diversity" ||
+    changeRA <- input$plotType == "Multiplicative Difference in Relative Abundance"
+    divPlot <- input$plotType == "Multiplicative Difference in Diversity" ||
                 input$plotType == "Diversity"
     changeRanges <- !is.null(input$changeRange) && isTRUE(input$changeRange) && 
                     input$plotType != "Relative Abundance" &&
@@ -402,7 +402,7 @@ server <- function(input, output, session) {
           cols = list(names = TRUE)
         )))
     } else if (changeRA || 
-               input$plotType == "Multiplicative Change in Diversity") {
+               input$plotType == "Multiplicative Difference in Diversity") {
       dyn <- c(dyn, list(
         textInput("yLabel", "Y-axis Label:", 
                   "Weeks from 27 Weeks of Gestational Age"),
@@ -475,8 +475,8 @@ server <- function(input, output, session) {
     
     # ---- Processing the Data ----
     covVals <- getCenterScaledCovProfile(covVals, output$centerScaleList)
-    if (pType == "Multiplicative Change in Relative Abundance" ||
-        pType == "Multiplicative Change in Diversity") {
+    if (pType == "Multiplicative Difference in Relative Abundance" ||
+        pType == "Multiplicative Difference in Diversity") {
       heatmapIndex <- covChange
       covChange <- getCenterScaledChange(covChange, output$centerScaleList, 
                                         which(unlist(output$colMapping) == cov),
@@ -521,7 +521,7 @@ server <- function(input, output, session) {
                         xAxisRange=xAxisRange, figRowCol=figRowCol, 
                         legendLoc=legendLoc, suptitleLoc=suptitleLoc, 
                         sameYaxis=sameYaxis)
-    } else if (pType == "Multiplicative Change in Relative Abundance") {
+    } else if (pType == "Multiplicative Difference in Relative Abundance") {
       dataDict <- deltaRAData(output, cov, cats, covVals, covChange, xAxisRange,
                               betas=plotBetas)
       raTitlePrefix <- if (plotBetas) 
@@ -564,7 +564,7 @@ server <- function(input, output, session) {
                            lineWidth=lineWidth, byY=by, fontsize=fontSize, 
                            titleSize=titleSize, figsize=figsize, 
                            xAxisRange=xAxisRange)
-    } else if (pType == "Multiplicative Change in Diversity") {
+    } else if (pType == "Multiplicative Difference in Diversity") {
       dataDict <- deltaDivData(output, cov, covVals, covChange, lVal, 
                                xAxisRange, betas = plotBetas)
       ylabel <- "$\\Delta_{v}\\alpha_{p}(t)$"
@@ -589,7 +589,7 @@ server <- function(input, output, session) {
     }
 
     tmpfile <- tempfile(fileext = ".png")
-    fig$savefig(tmpfile, dpi = 96, bbox_inches = "tight")
+    fig$savefig(tmpfile, dpi = 300, bbox_inches = "tight")
     list(path = tmpfile, data = dataDict) 
   })
 

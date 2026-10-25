@@ -4,7 +4,7 @@
 # FunCZIDM.R. 
 
 getBasisX <- function(X, varyingCov, covWithVC, df = 4, degree=3,
-                      basisFunc=bs, evenSpacing=FALSE) {
+                      basisFunc=splines::bs, evenSpacing=FALSE) {
   # Adds nessary columns to X to include varying coefficients. That is,
   # the basis functions of the varying variable element-wise multiplied by each 
   # column of X seperately. This allows for a linear fit of X with coefficients,
@@ -25,6 +25,8 @@ getBasisX <- function(X, varyingCov, covWithVC, df = 4, degree=3,
   }
   interiorKnots <- attr(basis, "knots")
   boundaryKnots <- attr(basis, "Boundary.knots")
+  centers <- 0*colMeans(basis)#
+  basis <- scale(basis, scale=FALSE, center=centers)
   basis <- cbind(1, basis)
   df <- df + 1
 
@@ -47,7 +49,8 @@ getBasisX <- function(X, varyingCov, covWithVC, df = 4, degree=3,
   }
   
   return(list("Xvar"=newX, "XvartoXColMapping"=colIdentifier,
-              "interiorKnots"=interiorKnots, "boundaryKnots"=boundaryKnots))
+              "interiorKnots"=interiorKnots, "boundaryKnots"=boundaryKnots,
+              "centers"=centers))
 }
 
 getNullInBetaCIProportion <- function(output, XvartoXColMapping, colMapping,
@@ -169,8 +172,8 @@ errorChecksFunCZIDM <- function(counts, covariates, ids, varyingCov,
   checkDataFrameTypes(covariates, "covariates")
   checkSameNumRows(counts, covariates, "counts", "covariates")
   if (!is.null(toReturn)) {
-    checkVectorStrings(toReturn, c("eta", "c", "u", "r", "phi", "lambda", "nu", 
-                                   "tau", "xi", "RA"),
+    checkVectorStrings(toReturn, c("eta", "c", "u", "r", "phi", "kappa",
+                                   "lambda", "nu", "tau", "xi", "RA"),
                        "returnable parameters")
   }
   if (!is.null(priors)) {

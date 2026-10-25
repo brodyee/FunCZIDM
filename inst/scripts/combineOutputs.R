@@ -7,7 +7,7 @@ library(FunCZIDM)
 library(optparse)
 
 optionsList = list(
-  make_option(c("--outputFolder"), type="character", default="infantApp",
+  make_option(c("--outputFolder"), type="character", default=".",
               help="Output folder")
 )
 optParser = OptionParser(option_list=optionsList, add_help_option=FALSE)

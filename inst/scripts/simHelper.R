@@ -192,6 +192,7 @@ getNullInBetaCIProportion <- function(output, XvartoXColMapping, colMapping,
   basis <- basisFunc(testPoints, df=df, intercept=FALSE,
                    knots=interiorKnots,
                    Boundary.knots=boundaryKnots)
+  basis <- scale(basis, scale=FALSE, center=output$basisCenters)
   basis <- cbind(1, basis)
   numDf <- df + 1
   

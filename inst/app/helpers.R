@@ -38,6 +38,7 @@ RAData <- function(output, covariates, xAxisRange, interceptBetas = TRUE) {
   basisTP <- output$basisFunc(testPoints, df=output$df, intercept=FALSE,
                               knots=output$interiorKnots,
                               Boundary.knots=output$boundaryKnots)
+  basisTP <- scale(basisTP, scale=FALSE, center=output$basisCenters)
   basisTP <- cbind(1, basisTP)
   numDf <- output$df + 1
   
@@ -65,6 +66,7 @@ deltaRAData <- function(output, cov, catsToCheckNames, covariates, changes,
   basisTP <- output$basisFunc(testPoints, df=output$df, intercept=FALSE,
                               knots=output$interiorKnots,
                               Boundary.knots=output$boundaryKnots)
+  basisTP <- scale(basisTP, scale=FALSE, center=output$basisCenters)
   basisTP <- cbind(1, basisTP)
   numDf <- output$df + 1
 
@@ -164,6 +166,7 @@ diversityData <- function(output, covariates, xAxisRange, l = 0) {
   basisTP <- output$basisFunc(testPoints, df=output$df, intercept=FALSE,
                               knots=output$interiorKnots,
                               Boundary.knots=output$boundaryKnots)
+  basisTP <- scale(basisTP, scale=FALSE, center=output$basisCenters)
   basisTP <- cbind(1, basisTP)
   numDf <- output$df + 1
   
@@ -187,6 +190,7 @@ deltaDivData <- function(output, cov, covariates, changes, l, xAxisRange,
   basisTP <- output$basisFunc(testPoints, df=output$df, intercept=FALSE,
                               knots=output$interiorKnots,
                               Boundary.knots=output$boundaryKnots)
+  basisTP <- scale(basisTP, scale=FALSE, center=output$basisCenters)
   basisTP <- cbind(1, basisTP)
   numDf <- output$df + 1
 

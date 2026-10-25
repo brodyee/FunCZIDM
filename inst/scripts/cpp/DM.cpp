@@ -19,7 +19,7 @@ List VarCoDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
                      const arma::uvec ID_END_IDX,
                      const int BURN_IN = 0,
                      const int NUM_THIN = 1,
-                     const int ADJ_FREQ = 250,
+                     const int ADJ_FREQ = 1000,
                      const double PROPOSAL_CAP = 0.75,
                      const bool ADJ_PROPOSALS = true,
                      const bool RETURN_BURN_IN = false,
@@ -118,15 +118,18 @@ List VarCoDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
   mat nu(NUM_COEF - 1, NUM_CAT, fill::ones);
   rowvec tau(NUM_CAT, fill::ones);
   rowvec xi(NUM_CAT, fill::ones);
+  kappa *= kappaRate/kappaShape;
+  lambda *= .1;
+  tau *= .1;
   
   // The initial values for beta can be specified.
   if (betaInitial.isNotNull()) {
     beta = as<mat>(betaInitial);
   } else {
-    fillRandSampleMat(beta, -.75, .75);
+    fillRandSampleMat(beta, -.05, .05);//-.75, .75);
   }
   fillGammaVec(phi, phiShape, phiRate);
-  fillLambdaNu(lambda, nu);
+  //fillLambdaNu(lambda, nu);
   
   gamma = arma::exp(X*beta); sampleCnoZI(c, COUNTS, u, gamma);
   
@@ -140,10 +143,10 @@ List VarCoDMSampler(const int ITER, const arma::umat COUNTS, const arma::mat X,
     sampleU(u, c, COUNTS);
     sampleBetaNoZI(beta, X, c, kappa, tau, lambda, gamma, betaAcceptProp, 
                    betaProposalSD, betaAcceptCount, firstBetaSD);
-    sampleKappa(kappa, beta, kappaShape, kappaRate);
-    sampleLambda(lambda, beta, nu, tau);
+    sampleKappa(kappa, beta, kappaShape, kappaRate, lambda, tau);
+    sampleLambda(lambda, beta, nu, tau, kappa);
     sampleNu(nu, lambda);
-    sampleTau(tau, beta, lambda, xi);
+    sampleTau(tau, beta, lambda, xi, kappa);
     sampleXi(xi, tau);
     
     // Adjusting proposal variances

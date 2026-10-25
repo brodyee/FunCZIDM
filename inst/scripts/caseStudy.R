@@ -113,4 +113,4 @@ FunCZIDM(infantCounts,
          df=opt$df,
          saveToFile=TRUE,
          fileName=outputFile,
-         saveNullInBetaCI=FALSE)
+         saveNullInBetaCI=FALSE, adjustFreq = 1000)

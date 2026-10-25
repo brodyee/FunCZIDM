@@ -16,6 +16,8 @@
 using namespace Rcpp;
 using namespace arma; 
 
+constexpr double kPi = 3.141592653589793238462643383279502884;
+
 ////////////////////////////////////////////////////////////////////////////////
 //////////////////// Initialization & output helpers ///////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -325,8 +327,25 @@ void sampleBeta(mat& beta, const mat& X, const mat& c, const vec& kappa,
   }
 }
 
+inline double invLogit(double x) {
+    if (x > 0.0) {
+        double e = std::exp(-x);
+        return e / (1.0 + e);
+    } else {
+        return 1.0 / (1.0 + std::exp(x));
+    }
+}
+
+inline double LSE(double a, double b) {
+    if (std::isinf(a) && a < 0) return b;
+    if (std::isinf(b) && b < 0) return a;
+
+    double m = std::max(a, b);
+    return m + std::log(std::exp(a - m) + std::exp(b - m));
+}
+
 void sampleKappa(vec& kappa, const mat& beta, const double& kappaShape,
-                 const double& kappaRate) {
+                 const double& kappaRate, const mat& lambda, const rowvec& tau) {
   const int NUM_CAT = kappa.n_elem,
             NUM_PARAM = beta.n_rows - 1; // first row is intercept
   mat betaNew = beta.rows(1, NUM_PARAM); // remove intercept
@@ -334,7 +353,28 @@ void sampleKappa(vec& kappa, const mat& beta, const double& kappaShape,
   double alphaPrime = kappaShape + NUM_PARAM*.5;
   arma::rowvec betaPrimes = arma::sum(arma::square(betaNew), 0)/2.0 + kappaRate;
   for (int cat = 0; cat < NUM_CAT; cat++) {
-    kappa[cat] = std::sqrt(1.0/R::rgamma(alphaPrime, 1.0/betaPrimes[cat]));
+    // will calc 1/(1 + prod*A_2/A_1) = 1/(1 + exp(log(prod*A_2/A_1)))
+    double lgStuff = NUM_PARAM*std::log(std::abs(tau[cat])) 
+                     + arma::accu(arma::log(arma::abs(lambda.col(cat))))
+                     - (0.5*NUM_PARAM)*std::log(betaPrimes[cat]) 
+                     + std::lgamma(alphaPrime)
+                     - std::lgamma(kappaShape);
+    double pi = invLogit(lgStuff);
+    if (pi > R::runif(0, 1)) {
+      alphaPrime = kappaShape;
+    } else {
+      alphaPrime =  kappaShape + NUM_PARAM*.5;
+    }
+    double prop = std::sqrt(1.0/R::rgamma(alphaPrime, 1.0/betaPrimes[cat]));
+    double logAcceptRatio = .5*arma::sum(arma::log((prop*prop) + arma::square(lambda.col(cat)*tau[cat]))
+                         - arma::log((kappa[cat]*kappa[cat]) + arma::square(lambda.col(cat)*tau[cat])));
+    logAcceptRatio += LSE(.5*NUM_PARAM*std::log(kappa[cat]*kappa[cat]), 
+                          .5*arma::sum(arma::log(arma::square(lambda.col(cat)*tau[cat]))))
+                      - LSE(.5*NUM_PARAM*std::log(prop*prop), 
+                          .5*arma::sum(arma::log(arma::square(lambda.col(cat)*tau[cat]))));
+    if (logAcceptRatio > std::log(R::runif(0, 1))) {
+      kappa[cat] = prop;
+    }
   }
 }
 
@@ -407,17 +447,37 @@ void samplePhi(vec& phi, const mat& r, const int& NUM_RE_PER_ID,
 }
 
 void sampleLambda(mat& lambda, const mat& beta, const mat& nu,
-                  const rowvec& tau) {
+                  const rowvec& tau, const vec& kappa) {
   const int NUM_COEF = lambda.n_rows,
             NUM_CAT = lambda.n_cols;
   mat betaNew = beta.rows(1, NUM_COEF);
-  
+
+  double alphaPrime;
   mat betaSq = betaNew%betaNew;
   mat betaPrimes = (1.0/nu) + betaSq.each_row()/(2.0*(tau%tau));
   for (int cat = 0; cat < NUM_CAT; cat++) {
     for (int coef = 0; coef < NUM_COEF; coef++) {
-      lambda.at(coef, cat) 
-                    = std::sqrt(1.0/R::rgamma(1, 1.0/betaPrimes.at(coef, cat)));                                                       
+      // will calc 1/(1 + prod*A_2/A_1) = 1/(1 + exp(log(prod*A_2/A_1)))
+      double lgStuff = std::log(std::abs(kappa[cat])) 
+                       - std::log(std::abs(tau[cat]))
+                       - (0.5)*std::log(betaPrimes.at(coef, cat))
+                       - (0.5)*std::log(kPi);
+      double pi = invLogit(lgStuff);
+      if (pi > R::runif(0, 1)) {
+        alphaPrime =  0.5;
+      } else {
+        alphaPrime =  1.0;
+      }
+      double prop = std::sqrt(1.0/R::rgamma(alphaPrime, 1.0/betaPrimes.at(coef, cat)));
+      double logAcceptRatio = .5*(std::log((kappa[cat]*kappa[cat])/(tau[cat]*tau[cat]) + (prop*prop))
+                                  - std::log((kappa[cat]*kappa[cat])/(tau[cat]*tau[cat]) + (lambda.at(coef, cat)*lambda.at(coef, cat))));
+      logAcceptRatio += LSE(.5*std::log(lambda.at(coef, cat)*lambda.at(coef, cat)), 
+                            .5*(std::log(kappa[cat]*kappa[cat]) - std::log(tau[cat]*tau[cat])))
+                      - LSE(.5*std::log(prop*prop), 
+                            .5*(std::log(kappa[cat]*kappa[cat]) - std::log(tau[cat]*tau[cat])));
+      if (logAcceptRatio > std::log(R::runif(0, 1))) {
+        lambda.at(coef, cat) = prop;
+      }                                                      
     }
   }
 }
@@ -435,16 +495,38 @@ void sampleNu(mat& nu, const mat& lambda) {
 }
 
 void sampleTau(rowvec& tau, const mat& beta, const mat& lambda,
-               const rowvec& xi) {
+               const rowvec& xi, const vec& kappa) {
   const int NUM_COEF = lambda.n_rows,
             NUM_CAT = lambda.n_cols;
   mat betaNew = beta.rows(1, NUM_COEF);
-  
+
   double alphaPrime = (NUM_COEF + 1.0)/2.0;
   mat betaLambdas = (betaNew%betaNew)/(2.0*(lambda%lambda));
   rowvec betaPrimes = arma::sum(betaLambdas, 0) + (1.0/xi);
   for (int cat = 0; cat < NUM_CAT; cat++) {
-    tau[cat] = std::sqrt(1.0/R::rgamma(alphaPrime, 1.0/betaPrimes[cat]));
+    // will calc 1/(1 + prod*A_2/A_1) = 1/(1 + exp(log(prod*A_2/A_1)))
+    double lgStuff = NUM_COEF*std::log(std::abs(kappa[cat])) 
+                     - arma::accu(arma::log(arma::abs(lambda.col(cat))))
+                     - (0.5*NUM_COEF)*std::log(betaPrimes[cat]) 
+                     + std::lgamma(alphaPrime)
+                     - (0.5)*std::log(kPi);
+    double pi = invLogit(lgStuff);
+    if (pi > R::runif(0, 1)) {
+      alphaPrime = .5;
+    } else {
+      alphaPrime = (NUM_COEF + 1.0)/2.0;
+    }
+    double prop = std::sqrt(1.0/R::rgamma(alphaPrime, 1.0/betaPrimes[cat]));
+    double logAcceptRatio = .5*arma::sum(arma::log(arma::square(kappa[cat]/lambda.col(cat)) + prop*prop)
+                         - arma::log(arma::square(kappa[cat]/lambda.col(cat)) + tau[cat]*tau[cat]));
+    logAcceptRatio += LSE(.5*NUM_COEF*std::log(tau[cat]*tau[cat]), 
+                          .5*arma::sum(arma::log(arma::square(kappa[cat]/lambda.col(cat)))))
+                      - LSE(.5*NUM_COEF*std::log(prop*prop), 
+                          .5*arma::sum(arma::log(arma::square(kappa[cat]/lambda.col(cat))))); 
+               
+    if (logAcceptRatio > std::log(R::runif(0, 1))) {
+      tau[cat] = prop;
+    }
   }
 }
 

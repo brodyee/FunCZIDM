@@ -175,7 +175,7 @@
 #' }
 #' @export 
 FunCZIDM <- function(counts, covariates, ids, varyingCov, 
-                     iter = 10000, burnIn = 5000, thin = 1, adjustFreq = 250,
+                     iter = 10000, burnIn = 5000, thin = 1, adjustFreq = 1000,
                      returnBurnIn = FALSE, printProgress = TRUE, 
                      toReturn = NULL, betaInitial = NULL, rInitial = NULL, 
                      priors = NULL, proposalVars = NULL, covWithoutVC=NULL, 
@@ -236,6 +236,7 @@ FunCZIDM <- function(counts, covariates, ids, varyingCov,
   XvartoXColMapping <- basisList$XvartoXColMapping # Column mapping (Xvar -> X)
   interiorKnots <- basisList$interiorKnots # Interior knots of basis functions
   boundaryKnots <- basisList$boundaryKnots # Boundary knots of basis functions
+  centers <- basisList$centers
 
   # updating rCols to correspond to the Xvar
   rCols <- c(0)
@@ -269,6 +270,7 @@ FunCZIDM <- function(counts, covariates, ids, varyingCov,
   output[["df"]] <- df
   output[["catNames"]] <- colnames(counts)
   output[["centerScaleList"]] <- centerScaleList
+  output[["basisCenters"]] <- centers
   
   if (saveNullInBetaCI) { 
     getNullInBetaCIProportion(output, XvartoXColMapping, colMapping, varyingCov,
@@ -311,6 +313,7 @@ getBetaFunctions <- function(output, cov = NULL) {
   basis <- output$basisFunc(testPoints, df=output$df, intercept=FALSE,
                            knots=output$interiorKnots,
                            Boundary.knots=output$boundaryKnots)
+  basis <- scale(basis, scale=FALSE, center=output$basisCenters)
   basis <- cbind(1, basis) # Add intercept
   numDf <- output$df + 1 # + 1 for intercept
 
@@ -356,6 +359,7 @@ calcRA <- function(output, covProfile=NULL) {
   basis <- output$basisFunc(testPoints, df=output$df, intercept=FALSE,
                            knots=output$interiorKnots,
                            Boundary.knots=output$boundaryKnots)
+  basis <- scale(basis, scale=FALSE, center=output$basisCenters)
   basis <- cbind(1, basis) # Add intercept
   numDf <- output$df + 1 # + 1 for intercept
 
@@ -411,6 +415,7 @@ calcDeltaRA <- function(output, change, forCovs, covProfile=NULL,
   basis <- output$basisFunc(testPoints, df=output$df, intercept=FALSE,
                             knots=output$interiorKnots,
                             Boundary.knots=output$boundaryKnots)
+  basis <- scale(basis, scale=FALSE, center=output$basisCenters)
   basis <- cbind(1, basis) # Add intercept
   numDf <- output$df + 1 # + 1 for intercept
 
@@ -522,6 +527,7 @@ calcAlphaDiv <- function(output, l=0, covProfile=NULL) {
   basis <- output$basisFunc(testPoints, df=output$df, intercept=FALSE,
                             knots=output$interiorKnots,
                             Boundary.knots=output$boundaryKnots)
+  basis <- scale(basis, scale=FALSE, center=output$basisCenters)
   basis <- cbind(1, basis) # Add intercept
   numDf <- output$df + 1 # + 1 for intercept
 
@@ -572,6 +578,7 @@ calcDeltaAlphaDiv <- function(output, change, forCovs, l = 0, covProfile=NULL) {
   basis <- output$basisFunc(testPoints, df=output$df, intercept=FALSE,
                             knots=output$interiorKnots,
                             Boundary.knots=output$boundaryKnots)
+  basis <- scale(basis, scale=FALSE, center=output$basisCenters)
   basis <- cbind(1, basis) # Add intercept
   numDf <- output$df + 1 # + 1 for intercept
   
@@ -646,7 +653,7 @@ combineOutputs <- function(outputFiles, saveToFile = TRUE,
   # these keys are the same for all outputs
   keys <- c("interiorKnots", "boundaryKnots", "varyingCov", "colMapping",
             "XvartoXColMapping", "basisFunc", "df", "catNames",
-            "centerScaleList")
+            "centerScaleList", "basisCenters")
   for (key in keys) {
     combinedOutput[[key]] <- output[[key]]
   }
@@ -880,6 +887,7 @@ getPropNullInCI <- function(output,
   basis <- basisFunc(testPoints, df=df, intercept=FALSE,
                      knots=interiorKnots,
                      Boundary.knots=boundaryKnots)
+  basis <- scale(basis, scale=FALSE, center=output$basisCenters)
   basis <- cbind(1, basis)
   numDf <- df + 1
   

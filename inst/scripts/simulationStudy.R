@@ -22,17 +22,17 @@ optionsList = list(
               help="Low end of range of total counts"),
   make_option(c("-h", "--totalCountHigh"), type="integer", default=450,
               help="High end of range of total counts"),
-  make_option(c("-i", "--numIterations"), type="integer", default=100,
+  make_option(c("-i", "--numIterations"), type="integer", default=6000,
               help="Number of iterations"),
-  make_option(c("--seed"), type="integer", default=33582,
+  make_option(c("--seed"), type="integer", default=62281,
               help="Seed for random number generator"),
   make_option(c("-f", "--pngFilePath"), type="character", default="plots/",
               help="File path to save plots"),
-  make_option(c("-b", "--burnIn"), type="integer", default=50,
+  make_option(c("-b", "--burnIn"), type="integer", default=5000,
               help="Number of burn in iterations"),
   make_option(c("--propSigma"), type="numeric", default=.1,
               help="Proposal standard deviation for beta"),
-  make_option(c("--toReturn"), type="character", default=c("RA"), 
+  make_option(c("--toReturn"), type="character", default=c("RA"), #"kappa", "tau", "lambda"), 
               help="Return values from function"),
   make_option(c("--saveTraceplots"), type="logical", default=TRUE,
               help="Save traceplots"),
@@ -180,7 +180,8 @@ if (opt$noZI) {
                                  "globalParam"=opt$globalParam,
                                  "first beta sd"=sqrt(opt$firstBetaVar)),
                      proposalVars=list("beta proposal sd"=opt$propSigma),
-                     df=opt$df, saveToFile=FALSE, saveNullInBetaCI = FALSE)
+                     df=opt$df, saveToFile=FALSE, saveNullInBetaCI = FALSE, 
+                     basisFunc=splines::bs, adjustFreq = 1000)
   endTime <- Sys.time()
 }
 totalTime <- as.numeric(difftime(endTime, startTime, units = "secs"))
@@ -229,6 +230,27 @@ cat("true prob median", median(RA), sep = ",", file=evalFile, append=TRUE)
 cat("\n", file=evalFile, append=TRUE)
 cat("true prob mean", mean(RA), sep = ",", file=evalFile, append=TRUE)
 cat("\n", file=evalFile, append=TRUE)
+#temp <- floor((opt$numIterations - opt$burnIn)/opt$thin)
+#nunique <- function(x) { length(unique(x)) }
+#cat("Lambda:\n", file=evalFile, append=TRUE)
+#cat(quantile(c(apply(output$lambda, c(1,2), nunique)/temp), probs=c(.025, .5, .975)), file=evalFile, append=TRUE)
+#cat("\n", file=evalFile, append=TRUE)
+#cat("kappa:\n", file=evalFile, append=TRUE)
+#cat(quantile(c(apply(output$kappa, 1, nunique)/temp), probs=c(.025, .5, .975)), file=evalFile, append=TRUE)
+#cat("\n", file=evalFile, append=TRUE)
+#cat("tau:\n", file=evalFile, append=TRUE)
+#cat(quantile(c(apply(output$tau, 2, nunique)/temp), probs=c(.025, .5, .975)), file=evalFile, append=TRUE)
+#cat("\n", file=evalFile, append=TRUE)
+#cat("MEANS:\n", file=evalFile, append=TRUE)
+#cat("Lambda:\n", file=evalFile, append=TRUE)
+#cat(apply(output$lambda[6,1:10,], 1, mean), file=evalFile, append=TRUE)
+#cat("\n", file=evalFile, append=TRUE)
+#cat("kappa:\n", file=evalFile, append=TRUE)
+#cat(apply(output$kappa[1:10,], 1, mean), file=evalFile, append=TRUE)
+#cat("\n", file=evalFile, append=TRUE)
+#cat("tau:\n", file=evalFile, append=TRUE)
+#cat(apply(output$tau[,1:10], 2, mean), file=evalFile, append=TRUE)
+#cat("\n", file=evalFile, append=TRUE)
 
 
 # Get RA catpure rate
@@ -280,6 +302,7 @@ bFunc <- tvList$basisFunc
 basisTP <- bFunc(testPoints, df=numDf, intercept=FALSE,
                  knots=tvList$interiorKnots,
                  Boundary.knots=tvList$boundaryKnots)
+#basisTP <- scale(basisTP, scale=FALSE, center=output$basisCenters)
 basisTP <- cbind(1, basisTP)
 numDf <- numDf + 1
 
